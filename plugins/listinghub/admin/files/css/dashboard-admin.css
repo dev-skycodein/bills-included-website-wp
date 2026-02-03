@@ -1,0 +1,245 @@
+:root{
+	--btn-big-color:#0099ff;
+	--btn-small-color:#5f9df7;
+	--btn-font-color:#ffffff;
+	--btn-small-font-color:#ffffff;
+	--btn-color-hover:#6d4bd3;
+	--title-color:#5b5b5b;
+	--content-color:#66789C;
+	--icon_color:#a0abb8;
+	--max-border-color:#E0E6F7;
+	
+}
+
+
+.width20td{width:20%!important;}
+.width10td{width:10%!important;}
+.width15td{width:15%!important;}
+.width30td{width:30%!important;}
+.width5td{width:5%!important;}
+
+.bootstrap-wrapper .form-control {
+    display: block;
+    width: 100%;
+    height: 30px;
+    padding: 6px 12px;
+    font-size: 12px;
+    line-height: 1.428571429;
+    color: #555555;
+    background-color: #ffffff;  
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+    -webkit-transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
+    transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
+}
+.rounded-profileimg{
+	border-radius: 8px;
+	width:100px;
+}
+.bootstrap-wrapper .form-control:focus {
+    border-color: #66afe9;
+    outline: 0;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075), 0 0 8px rgba(102, 175, 233, 0.6);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075), 0 0 8px rgba(102, 175, 233, 0.6);
+}
+.bootstrap-wrapper .btn-icon {
+    color: var(--btn-small-font-color);
+    background-color: var(--btn-small-color);
+    border-color: var(--btn-small-color);
+	padding:0px 5px;
+}
+
+.bootstrap-wrapper .btn-primary {
+    color: var(--btn-small-font-color);
+    background-color: var(--btn-small-color);
+    border-color: var(--btn-small-color);
+	padding:5px 5px;
+}
+.bootstrap-wrapper .btn-primary:hover {
+    
+	filter: brightness(120%); 
+    background-color:  var(--btn-small-color);   
+	border-color: var(--btn-small-color);
+}
+
+#searchfieldsActive, #searchfieldsAvailable {
+border: 1px solid #eee;
+width:100%;
+background:#D0D0D0;
+min-height: 50px;
+list-style-type: none;   
+padding: 10px 10px 10px 10px;
+float: left;
+margin-right: 10px;
+margin-left: 0px;
+margin-top: 5px;
+}
+#searchfieldsActive li, #searchfieldsAvailable li {    
+padding: 8px;
+font-size:14px;
+font-weight:400;
+width:100%;
+color:#5d5d5d;
+
+}
+.w80{
+	width:80px;
+}
+.ui-state-default{
+	height:50px;
+}
+.marginright{		
+	margin-left: auto; 
+	float: right;
+}
+#searchfieldsActive, #searchfieldsAvailable{
+cursor: move;
+min-height: 250px;
+}
+.listing-field-cat{
+font-size:10px;font-weight:400;
+}
+.tabcontent {
+	display: none;
+
+}
+.bootstrap-wrapper a:hover {
+ text-decoration: none!important;
+}
+.bootstrap-wrapper a {
+ text-decoration: none!important;
+}
+.bottom20{
+	margin-bottom:20px;
+}
+.dashboard-eplugin{
+	margin-top:30px;
+	background-color: #ffffff;
+	padding: 10px;
+}
+#feature_icon {
+	font-family: FontAwesome;
+	font-weight: 900;
+}
+.none{display: none;}
+.paneledit{
+	text-align:right;
+	color:blue;
+	font-size:12px;
+}
+.chili{color:red}
+.chili:before{content:" *"}
+.image40px{width:40px;}
+.bs-callout {
+    margin: 20px 0;
+    padding: 15px 30px 15px 15px;
+    border-left: 5px solid #eee;
+}
+.bs-callout-info {
+    background-color: #E4F1FE;
+    border-color: #22A7F0;
+}
+.html-active .switch-html, .tmce-active .switch-tmce {
+	height: 28px!important;
+	}
+	.wp-switch-editor {
+		height: 28px!important;
+	}
+	
+	
+.bs-wizard {margin-bottom: 20px !important;}
+
+/*Form Wizard*/
+.bs-wizard {border-bottom: solid 1px #e0e0e0; padding: 0 0 10px 0;}
+.bs-wizard > .bs-wizard-step {padding: 0 !important; position: relative;}
+.bs-wizard > .bs-wizard-step + .bs-wizard-step {}
+.bs-wizard > .bs-wizard-step .bs-wizard-stepnum {color: #595959; font-size: 16px; margin-bottom: 5px;}
+.bs-wizard > .bs-wizard-step .bs-wizard-info {color: #999; font-size: 14px;}
+.bs-wizard > .bs-wizard-step > .bs-wizard-dot {position: absolute; width: 30px; height: 30px; display: block; background: #bfbfbf; top: 45px; left: 50%; margin-top: -15px; margin-left: -15px; border-radius: 50%;} 
+.bs-wizard > .bs-wizard-step > .bs-wizard-dot:after {content: ' '; width: 14px; height: 14px; background: #6c7a89; border-radius: 50px; position: absolute; top: 8px; left: 8px; } 
+.bs-wizard > .bs-wizard-step > .progress {position: relative; border-radius: 0px; height: 8px; box-shadow: none; margin: 20px 0;}
+.bs-wizard > .bs-wizard-step > .progress > .progress-bar {width:0px; box-shadow: none; background: #bfbfbf;}
+.bs-wizard > .bs-wizard-step.complete > .progress > .progress-bar {width:100%;}
+.bs-wizard > .bs-wizard-step.active > .progress > .progress-bar {width:50%;}
+.bs-wizard > .bs-wizard-step:first-child.active > .progress > .progress-bar {width:0%;}
+.bs-wizard > .bs-wizard-step:last-child.active > .progress > .progress-bar {width: 100%;}
+.bs-wizard > .bs-wizard-step.disabled > .bs-wizard-dot {background-color: #f5f5f5;}
+.bs-wizard > .bs-wizard-step.disabled > .bs-wizard-dot:after {opacity: 0;}
+.bs-wizard > .bs-wizard-step:first-child  > .progress {left: 50%; width: 50%;}
+.bs-wizard > .bs-wizard-step:last-child  > .progress {width: 50%;}
+.bs-wizard > .bs-wizard-step.disabled a.bs-wizard-dot{ pointer-events: none; }
+/*END Form Wizard*/
+.bootstrap-wrapper .btn-border {
+    border: 1px solid rgba(6, 18, 36, 0.1);
+    padding: 15px 23px 15px 23px;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #111112;
+    font-size: 16px;
+    -webkit-transition-duration: 0.2s;
+    transition-duration: 0.2s;
+	text-decoration: none!important;
+}
+.bootstrap-wrapper .btn-border:hover {
+    color: #ffffff;
+    background-color:  var(--btn-big-color);
+    -webkit-transition-duration: 0.2s;
+    transition-duration: 0.2s;
+    -webkit-transform: translateY(-3px);
+    transform: translateY(-3px);
+}
+.listinghub-settings-sub-section-title {    
+    margin-top: 20px;
+    color: #0073aa;
+    font-weight: 500;
+    font-size: 14px;
+}
+#admin-menu{
+		display: none;
+}
+.ui-state-default {
+		height: 80px;
+	}
+.bootstrap-wrapper select {	
+    background-position-y: 7px!important; 
+}
+.dataTables_length select{
+	width: 80px !important; 
+	height: 40px !important;
+	border-color: #d1d1d1;
+	padding:10px;
+}
+
+
+@media (min-width: 220px) and (max-width: 540px) {
+	#listinghub-left-menu{
+		display:none;
+	}
+	#admin-menu{
+		display: block;
+	}
+	.ui-state-default {
+		height: 120px;
+	}
+}
+
+@media (min-width: 540px) and (max-width:1024px) {	
+	
+	.ui-state-default {
+		height: 100px;
+	}
+	
+	.bootstrap-wrapper .form-control{	
+		 font-size: 11px;		
+	}
+	.btn-primary{
+		 margin-bottom:10px!important;
+	}
+	.bootstrap-wrapper .btn-border {		
+		padding: 10px 15px;
+		border-radius: 8px;		
+		font-size: 14px;		
+	}
+}

@@ -1,0 +1,133 @@
+$flaticon-font: "flaticon";
+
+@font-face {
+    font-family: $flaticon-font;
+    src: url("./flaticon.ttf?f1ce52fd6e3acd0c47125b477a942aa5") format("truetype"),
+url("./flaticon.woff?f1ce52fd6e3acd0c47125b477a942aa5") format("woff"),
+url("./flaticon.woff2?f1ce52fd6e3acd0c47125b477a942aa5") format("woff2"),
+url("./flaticon.eot?f1ce52fd6e3acd0c47125b477a942aa5#iefix") format("embedded-opentype"),
+url("./flaticon.svg?f1ce52fd6e3acd0c47125b477a942aa5#flaticon") format("svg");
+}
+
+i[class^="flaticon-"]:before, i[class*=" flaticon-"]:before {
+    font-family: flaticon !important;
+    font-style: normal;
+    font-weight: normal !important;
+    font-variant: normal;
+    text-transform: none;
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+$flaticon-map: (
+    "muscle": "\f101",
+    "exercise": "\f102",
+    "stationary-bike": "\f103",
+    "exercise-1": "\f104",
+    "weightlifter": "\f105",
+    "tape-measure": "\f106",
+    "dumbbell": "\f107",
+    "hand-grip": "\f108",
+    "skipping-rope": "\f109",
+    "dumbbell-1": "\f10a",
+    "exercise-2": "\f10b",
+    "fitness": "\f10c",
+    "dancing": "\f10d",
+    "fitness-1": "\f10e",
+    "gym": "\f10f",
+    "dumbbell-2": "\f110",
+    "strongman": "\f111",
+    "muscular-bodybuilder-with-clock": "\f112",
+    "muscular": "\f113",
+    "muscles": "\f114",
+    "abs": "\f115",
+    "weightlifting": "\f116",
+    "telephone": "\f117",
+    "email": "\f118",
+    "pin": "\f119",
+    "right-arrow": "\f11a",
+    "shopping-cart": "\f11b",
+);
+
+.flaticon-muscle:before {
+    content: map-get($flaticon-map, "muscle");
+}
+.flaticon-exercise:before {
+    content: map-get($flaticon-map, "exercise");
+}
+.flaticon-stationary-bike:before {
+    content: map-get($flaticon-map, "stationary-bike");
+}
+.flaticon-exercise-1:before {
+    content: map-get($flaticon-map, "exercise-1");
+}
+.flaticon-weightlifter:before {
+    content: map-get($flaticon-map, "weightlifter");
+}
+.flaticon-tape-measure:before {
+    content: map-get($flaticon-map, "tape-measure");
+}
+.flaticon-dumbbell:before {
+    content: map-get($flaticon-map, "dumbbell");
+}
+.flaticon-hand-grip:before {
+    content: map-get($flaticon-map, "hand-grip");
+}
+.flaticon-skipping-rope:before {
+    content: map-get($flaticon-map, "skipping-rope");
+}
+.flaticon-dumbbell-1:before {
+    content: map-get($flaticon-map, "dumbbell-1");
+}
+.flaticon-exercise-2:before {
+    content: map-get($flaticon-map, "exercise-2");
+}
+.flaticon-fitness:before {
+    content: map-get($flaticon-map, "fitness");
+}
+.flaticon-dancing:before {
+    content: map-get($flaticon-map, "dancing");
+}
+.flaticon-fitness-1:before {
+    content: map-get($flaticon-map, "fitness-1");
+}
+.flaticon-gym:before {
+    content: map-get($flaticon-map, "gym");
+}
+.flaticon-dumbbell-2:before {
+    content: map-get($flaticon-map, "dumbbell-2");
+}
+.flaticon-strongman:before {
+    content: map-get($flaticon-map, "strongman");
+}
+.flaticon-muscular-bodybuilder-with-clock:before {
+    content: map-get($flaticon-map, "muscular-bodybuilder-with-clock");
+}
+.flaticon-muscular:before {
+    content: map-get($flaticon-map, "muscular");
+}
+.flaticon-muscles:before {
+    content: map-get($flaticon-map, "muscles");
+}
+.flaticon-abs:before {
+    content: map-get($flaticon-map, "abs");
+}
+.flaticon-weightlifting:before {
+    content: map-get($flaticon-map, "weightlifting");
+}
+.flaticon-telephone:before {
+    content: map-get($flaticon-map, "telephone");
+}
+.flaticon-email:before {
+    content: map-get($flaticon-map, "email");
+}
+.flaticon-pin:before {
+    content: map-get($flaticon-map, "pin");
+}
+.flaticon-right-arrow:before {
+    content: map-get($flaticon-map, "right-arrow");
+}
+.flaticon-shopping-cart:before {
+    content: map-get($flaticon-map, "shopping-cart");
+}

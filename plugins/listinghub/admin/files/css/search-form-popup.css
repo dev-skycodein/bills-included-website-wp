@@ -1,0 +1,203 @@
+
+#slider12a .slider-track-high, #slider12c .slider-track-high {
+	background: green;
+}
+#slider12a{
+	width:65%;
+}
+#slider-search{  
+  font-size: 16px;
+}
+.ms-options-wrap > button:focus,
+.ms-options-wrap > button {   
+    font-size: 16px;  
+	font-weight: 400;  
+    height: calc(3.00em);
+	border: 1px solid #c6c3c4;
+	border-radius: 0.3rem;	
+}
+.ms-options > ul{
+	
+	font-size: 14px;  
+	font-weight: 400;  
+	
+}
+.bootstrap-wrapper .form-control{
+   height: calc(3.00em);
+   border-radius: 0.3rem;
+   border: 1px solid #c6c3c4;
+   font-size: 16px;
+   font-weight: 400; 
+   color: #212529;
+   
+}
+.bootstrap-wrapper .form-control-textarea{
+   height: calc(6.00em);
+   border-radius: 0.6rem;
+   border: 1px solid #c6c3c4;
+   font-size: 16px;
+   font-weight: 400;  
+   color: #212529;
+}
+.bootstrap-wrapper .btn-block {
+  height: calc(3.60em);
+  border-radius: 0.6rem;
+}
+.background-transparent-slider{
+  background: transparent; margin: 0; padding:0;
+}
+.bootstrap-wrapper .form-control::placeholder { /* Chrome, Firefox, Opera, Safari 10.1+ */
+	color: #212529!important;
+	opacity: 1; /* Firefox */
+}
+
+.bootstrap-wrapper .form-control:-ms-input-placeholder { /* Internet Explorer 10-11 */
+     color: #212529!important;
+}
+
+.bootstrap-wrapper .form-control::-ms-input-placeholder { /* Microsoft Edge */
+     color: #212529!important;
+ }
+
+ @media only screen and (max-width: 480px) {
+
+	div.left, div.right {
+        float: center;
+        padding: 10px;
+        width:100%
+	}
+	.cbp-search-submit{
+		 width:100%
+	}
+}
+@media only screen and (max-width: 768px) {
+
+	div.left, div.right {
+        padding: 10px;
+
+	}
+
+ }
+
+.input-field .form-group.search {
+  width: 10%;
+  float: right;
+  padding-right: 0;
+}
+
+
+.input-field .form-group.search button span {
+  padding-left: 5px;
+}
+
+
+@media (max-width: 991px) {
+  .input-field .form-group.search button span {
+    display: none;
+  }
+}
+
+
+@media (max-width: 768px) {
+  
+  .input-field .form-group {
+    width: 100%;
+    float: none;
+  }
+
+  .input-field .form-group.search {
+    width: auto;
+  }
+
+  .input-field .form-group.search button span {
+    display: inline;
+  }
+}
+
+.form-control:focus{
+  border: 1px solid #333  !important;
+  box-shadow: none !important;
+
+}
+
+/* New checkbox  */
+
+.customcheck {
+    display: block;
+    position: relative;
+    padding-left: 30px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    font-size: 14px;
+	color: #37404e;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Hide the browser's default checkbox */
+ input.largerCheckbox {
+	width: 15px;
+	height: 15px;
+}
+.customcheck input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/* Create a custom checkbox */
+.checkmark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 23px;
+    width: 23px;
+    background-color: #ffffff;
+	border: 2px solid #d1d1d1;
+    border-radius: 4px;
+}
+/* On mouse-over, add a grey background color */
+.customcheck:hover input ~ .checkmark {
+    background-color: #ccc;
+}
+
+/* When the checkbox is checked, add a blue background */
+.customcheck input:checked ~ .checkmark {
+    background-color: var(--btn-small-color);
+    border-radius: 5px;
+}
+
+/* Create the checkmark/indicator (hidden when not checked) */
+.checkmark:after {
+    content: "";
+    position: absolute;
+    display: none;
+}
+
+/* Show the checkmark when checked */
+.customcheck input:checked ~ .checkmark:after {
+    display: block;
+}
+
+/* Style the checkmark/indicator */
+.customcheck .checkmark:after {
+    left: 6px;
+    top: 5px;
+    width: 6px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 3px 3px 0;
+	
+    -webkit-transform: rotate(45deg);
+    -ms-transform: rotate(45deg);
+    transform: rotate(45deg);
+
+}
+.form-control{
+	height: 40px;
+	background: none!important;
+	 -webkit-appearance: auto;
+}
+/*  End Checkbox*/

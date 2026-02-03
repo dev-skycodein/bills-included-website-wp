@@ -1,0 +1,141 @@
+:root{
+	--btn-big-color:#0099ff;
+	--btn-small-color:#5f9df7;
+	--btn-font-color:#ffffff;
+	--btn-color-hover:#6d4bd3;
+	--title-color:#5b5b5b;
+	--content-color:#66789C;
+	--icon_color:#a0abb8;
+	--max-border-color:#E0E6F7;
+	
+}
+.bootstrap-wrapper .btn.btn-small-ar:hover {
+	filter: brightness(90%);  
+    -webkit-transform: translateY(-2px);
+    transform: translateY(-2px);
+    -webkit-transition: 0.2s;
+	color: var(--btn-small-font-color);
+    transition: 0.2s;
+	box-shadow: 0 0 10px 0 rgb(0 0 0 / 20%);
+}
+.bootstrap-wrapper .btn.btn-small-ar {
+    color: var(--btn-small-font-color);
+    background-color: var(--btn-small-color);
+	border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 14px;	
+    line-height: 1;
+    -webkit-transition: 0.2s;
+    transition: 0.2s;
+}
+@media (min-width: 220px) and (max-width: 480px) {	
+	.listinghubborder{		
+		padding: 15px 10px 10px 0px!important;    
+	}	
+	.bootstrap-wrapper .btn.btn-secondary {		
+		border-radius: 8px;
+		padding: 10px 15px!important;
+		font-size: 14px;		
+	}
+}	
+.bootstrap-wrapper  select {
+  
+    background-position-y: 15px!important; 
+}
+
+.displaynone{
+	display: none;
+}
+.form-error{
+	padding-left: 5px;
+	color:red;
+}
+.user_info{	
+	padding-top: 20px;
+	border-radius: 3px;
+	margin-bottom: 3px;
+}
+.header-profile{
+	padding: 10px 0;
+}
+.payment_info{
+	padding: 20px 0;	
+}
+
+.bootstrap-wrapper .btn.btn-secondary:hover {
+	filter: brightness(120%);  
+    -webkit-transform: translateY(-2px);
+    transform: translateY(-2px);
+	transition: 0.2s;
+    -webkit-transition: 0.2s;
+	color: var(--btn-font-color);
+    transition: 0.2s;
+	box-shadow: 0 0 15px 0 rgb(0 0 0 / 20%);
+}
+.bootstrap-wrapper .btn.btn-secondary {
+    color: var(--btn-font-color);
+    background-color: var(--btn-big-color);
+	border-radius: 8px;
+    padding: 14px 25px;
+    font-size: 18px;	
+    line-height: 1;
+    -webkit-transition: 0.2s;
+    transition: 0.2s;
+}
+
+#iv-form3 .form-control{
+	height: 40px;
+	background: none!important;
+	 -webkit-appearance: auto;
+}
+#iv-form3 .user_info input[type]:not(input[type='radio']){
+	height: 40px;
+}
+.light-bg{
+	background: #F0F0F0;
+}
+.listinghubborder{	
+    border: thin solid var(--max-border-color);
+    border-radius: 8px;
+    padding: 20px 30px 30px 30px;
+    margin-bottom: 50px;
+}
+.bootstrap-wrapper .border-bottom {
+    border-bottom: 1px solid var(--max-border-color)!important;
+}
+.toptitle {
+    font-style: normal;
+    font-weight: 600;
+    font-size: 22px;
+    line-height: 26px;
+    color: var(--title-color);
+}
+
+#listinghub_registration .form-control {
+    height: 40px;
+    font-size: 14px;
+    font-weight: normal;
+    color: #333333;
+    background-color: #fff;
+    border: 1px solid #e5e5e5;
+    -webkit-box-shadow: none;
+    box-shadow: none;
+    border-radius: 0 !important;
+    -webkit-transition: border-color ease-in-out .15s, box-shadow ease-in-out .15s;
+    transition: border-color ease-in-out .15s, box-shadow ease-in-out .15s;
+}
+
+/* Styles that are also copied for Preview */
+.none{display: none;}
+.vcenter{
+		display : table-cell;
+		vertical-align : middle !important;
+		float:none;
+	}
+.chili{color:red}
+.chili:before{content:" *"}
+
+ #iv-form3 label{ font-weight:normal;font-size:15px; color:#666}
+#iv-form3 .form-control{ color:#222}
+#iv-form3{ max-width:960px}
+	
