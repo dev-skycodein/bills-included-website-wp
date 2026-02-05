@@ -9129,3 +9129,6 @@
     border-color: #dee2e6;
   }
 }
+#gallery_image_div img.img-responsive{
+  width: 100%;
+}

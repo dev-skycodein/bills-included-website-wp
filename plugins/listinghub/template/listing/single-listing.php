@@ -11,7 +11,8 @@
 	wp_enqueue_style('jquery-ui', ep_listinghub_URLPATH . 'admin/files/css/jquery-ui.css');
 	wp_enqueue_script('colorbox', ep_listinghub_URLPATH . 'admin/files/js/jquery.colorbox-min.js');	
 	wp_enqueue_script('jquery.fancybox',ep_listinghub_URLPATH . 'admin/files/js/jquery.fancybox.js');	
-	wp_enqueue_style('listinghub_single-listing', ep_listinghub_URLPATH . 'admin/files/css/single-listing.css');	
+	wp_enqueue_style('listinghub_single-listing', ep_listinghub_URLPATH . 'admin/files/css/single-listing.css');
+	wp_enqueue_style('listinghub_single-listing-custom', ep_listinghub_URLPATH . 'admin/files/css/single-listing-custom.css', array('listinghub_single-listing'));
 	
 	$main_class = new eplugins_listinghub;
 	$listinghub_directory_url=get_option('ep_listinghub_url');
@@ -25,6 +26,39 @@
 	if(empty($active_single_fields_saved)){$active_single_fields_saved=listinghub_get_listing_fields_all_single();}	
 	$single_page_icon_saved=get_option('listinghub_single_icon_saved' );		
 	$wp_directory= new eplugins_listinghub();
+	$listinghub_section_has_data = function( $field_key ) use ( $listingid, $listinghub_directory_url ) {
+		switch ( $field_key ) {
+			case 'description':
+				$p = get_post( $listingid );
+				return $p && trim( (string) $p->post_content ) !== '';
+			case 'video':
+				return trim( (string) get_post_meta( $listingid, 'vimeo', true ) ) !== '' || trim( (string) get_post_meta( $listingid, 'youtube', true ) ) !== '';
+			case 'tag':
+				$terms = wp_get_object_terms( $listingid, $listinghub_directory_url . '-tag' );
+				return ! is_wp_error( $terms ) && ! empty( $terms );
+			case 'location':
+				$terms = wp_get_object_terms( $listingid, $listinghub_directory_url . '-locations' );
+				return ! is_wp_error( $terms ) && ! empty( $terms );
+			case 'image-gallery':
+				$gallery_ids = get_post_meta( $listingid, 'image_gallery_ids', true );
+				$gallery_arr = array_filter( array_map( 'trim', explode( ',', (string) $gallery_ids ) ) );
+				return ! empty( $gallery_arr ) || has_post_thumbnail( $listingid );
+			case 'faq':
+				return trim( (string) get_post_meta( $listingid, 'faq_title0', true ) ) !== '';
+			case 'review':
+				return true;
+			default:
+				$val = get_post_meta( $listingid, $field_key, true );
+				return $val !== '' && $val !== array();
+		}
+	};
+	if ( array_key_exists( 'simillar_listing', $active_single_fields_saved ) ) {
+		wp_enqueue_style( 'listinghub_archive-listing', ep_listinghub_URLPATH . 'admin/files/css/archive-listing.css' );
+		wp_enqueue_style( 'font-awesome', ep_listinghub_URLPATH . 'admin/files/css/all.min.css' );
+		wp_enqueue_style( 'slick', ep_listinghub_URLPATH . 'admin/files/css/slick/slick.css' );
+		wp_enqueue_style( 'slick-theme', ep_listinghub_URLPATH . 'admin/files/css/slick/slick-theme.css' );
+		wp_enqueue_script( 'slick', ep_listinghub_URLPATH . 'admin/files/css/slick/slick.min.js', array( 'jquery' ), null, true );
+	}
 	while ( have_posts() ) : the_post();
 	$currentCategory = $main_class->listinghub_get_categories_caching($listingid,$listinghub_directory_url);
 	$cat_name2='';
@@ -116,48 +150,7 @@
 					if(array_key_exists('title',$active_single_fields_saved)){ 	
 						$saved_icon= listinghub_get_icon($single_page_icon_saved, 'title' ,'single');
 					?>
-					<h2 class="title-detail "><i class="<?php echo esc_html($saved_icon); ?> "></i> <?php echo get_the_title($listingid); ?></h2>
-					<?php
-					}
-					?>
-					<div class="mt-0 mb-15">
-					<?php			
-					if(array_key_exists('post_date',$active_single_fields_saved)){ 				
-					?>	
-					<span class="card-time"><?php
-						$saved_icon= listinghub_get_icon($single_page_icon_saved,'post_date', 'single');
-						?><i class=" <?php echo esc_html($saved_icon); ?>"></i><?php echo get_the_date( 'd F - Y g:i a ', $id ); ?>
-					</span>		
-					<?php
-						}
-					?>
-					<?php			
-					if(array_key_exists('category',$active_single_fields_saved)){ 				
-					?>	
-					<span class="card-time"><?php					
-							$currentCategory = $main_class->listinghub_get_categories_caching($id,$listinghub_directory_url);
-							$saved_icon='';
-							$cat_name2='';
-							$i=0;
-							if(isset($currentCategory[0]->slug)){										
-								foreach($currentCategory as $c){							
-									if(trim($saved_icon)==''){
-										$saved_icon= listinghub_get_cat_icon($c->term_id);
-									}
-									if($i==0){
-										$cat_name2 = $c->name;
-										}else{
-										$cat_name2 = $cat_name2 .' / '.$c->name;
-									}
-									$i++;
-								}
-							}
-							
-						?><i class=" ml-2 <?php echo esc_html($saved_icon); ?>"></i><strong class="small-heading"><?php echo esc_html($cat_name2); ?></strong>
-					</span>		
-					<?php
-						}
-					?>
+					<h2 class="title-detail "><i class="<?php echo esc_html($saved_icon); ?> "></i> <?php echo get_the_title($listingid); ?>
 					<?php			
 					if(array_key_exists('open_status',$active_single_fields_saved)){ 
 						$openStatus = listinghub_check_time($listingid);
@@ -169,10 +162,12 @@
 					<?php
 						}
 					?>
+					</h2>
+					<?php
+					}
+					?>
 					
 					
-					
-					</div>
 					
 				</div>
 				<div class="col-lg-5 col-md-12 text-lg-end ">
@@ -208,7 +203,7 @@
 							<?php			
 							if(array_key_exists('pdf_button',$active_single_fields_saved)){ 				
 							?>							
-							<a class=" btn btn-border  mr-2 mb-2" href="<?php echo get_permalink();?>?&listinghubpdfpost=<?php echo esc_attr($listingid);?>" target="_blank"><i class="fas fa-download"></i> <?php esc_html_e('PDF', 'listinghub'); ?></a>
+							<!-- <a class=" btn btn-border  mr-2 mb-2" href="<?php echo get_permalink();?>?&listinghubpdfpost=<?php// echo esc_attr($listingid);?>" target="_blank"><i class="fas fa-download"></i> <?php// esc_html_e('PDF', 'listinghub'); ?></a> -->
 							<?php
 							}
 							?>
@@ -244,7 +239,7 @@
 					</div>		
 				</div>
 			</div>
-			<div class="border-bottom pt-10 pb-10"></div>       
+			<div class="border-bottom mt-0 mb-0"></div>       
 		</section>
 		<div class="row mt-5">
 			<div class="col-lg-8 col-md-12 col-sm-12 col-12">				
@@ -256,10 +251,13 @@
 							foreach($active_single_fields_saved  as $field_key => $field_value){
 								$saved_icon= listinghub_get_icon($single_page_icon_saved, $field_key, 'single');
 								if( !in_array($field_key,$data_for_top ) AND !in_array($field_key,$data_not_for_all_section) ){	 					
+									if ( ! $listinghub_section_has_data( $field_key ) ) {
+										continue;
+									}
 									switch ($field_key) {																
 										case "description": 
 									?>									
-									<div class="border-bottom pb-15 mb-3 toptitle"><i class="<?php echo esc_html($saved_icon); ?>"></i> <?php esc_html_e('Description','listinghub'); ?></div>
+									<div id="section-description" class="border-bottom pb-15 mb-3 mt-3 toptitle"><i class="<?php echo esc_html($saved_icon); ?>"></i> <?php esc_html_e('Description','listinghub'); ?></div>
 									<div class=" none  mb-4">
 										<?php
 										
@@ -273,23 +271,33 @@
 									<?php											
 										break;
 										case "video": 
+										echo '<div id="section-video" class="mt-5">';
 										include(ep_listinghub_template . '/listing/single-template/video.php');
+										echo '</div>';
 										break;
 										case "tag": 
+										echo '<div id="section-tag" class="mt-5">';
 										include(ep_listinghub_template . '/listing/single-template/tags.php');
+										echo '</div>';
 										break;
 										case "location": 
+										echo '<div id="section-location" class="mt-5">';
 										include(ep_listinghub_template . '/listing/single-template/locations.php');
+										echo '</div>';
 										break;
 										case "image-gallery": 
+										echo '<div id="section-image-gallery" class="mt-5">';
 										include(ep_listinghub_template . '/listing/single-template/image-gallery.php');
+										echo '</div>';
 										break;
 										case "faq": 
+										echo '<div id="section-faq" class="mt-5">';
 										include(ep_listinghub_template . '/listing/single-template/faqs.php');
+										echo '</div>';
 										break;
 										default:
-										if(get_post_meta($id,$field_key,true)!=''){
-											$custom_meta_data=get_post_meta($id,$field_key,true);
+										if(get_post_meta($listingid,$field_key,true)!=''){
+											$custom_meta_data=get_post_meta($listingid,$field_key,true);
 											if(is_array($custom_meta_data)){
 												$full_data='';
 												foreach( $custom_meta_data as $one_data){
@@ -298,8 +306,10 @@
 												$custom_meta_data=$full_data;
 											}
 										?>
-										<div class="border-bottom pb-15 mb-3 toptitle"><i class="<?php echo esc_html($saved_icon); ?>"></i>  <?php echo esc_html(ucwords(str_replace('_',' ',$field_key)));  ?></div>
-										<div class="row col-md-12 mb-4"> <?php echo wp_kses($custom_meta_data,'post'); ?></div>											
+										<div id="section-<?php echo esc_attr($field_key); ?>" class="border-bottom pb-15 mt-5 toptitle">
+											 <?php echo esc_html(ucwords(str_replace('_',' ',$field_key)));  ?>
+										</div>
+										<div><i class="<?php echo esc_html($saved_icon); ?>"></i>  <?php echo wp_kses($custom_meta_data,'post'); ?></div>											
 										<?php	
 										}
 										break;
@@ -310,7 +320,9 @@
 					?>
 					<?php
 					if(array_key_exists('review',$active_single_fields_saved)){ 
-						include(ep_listinghub_template.'/listing/single-template/reviews.php');			
+						echo '<div id="section-review">';
+						include(ep_listinghub_template.'/listing/single-template/reviews.php');
+						echo '</div>';
 					}
 					?>
 				
@@ -410,42 +422,138 @@
 						<?php
 							if(array_key_exists('address',$active_single_fields_saved)){ 
 							?>
-						<ul class="ul-disc">
-							<?php if($company_address!=''){  ?>
-							<li><?php echo esc_html($company_address); ?></li>
+						<!-- <ul class="ul-disc">
+							<?php //if($company_address!=''){  ?>
+							<li><?php //echo esc_html($company_address); ?></li>
 							<?php
-							}
+							//}
 							?>
-							<?php if($company_phone!=''){  ?>
-							<li><?php esc_html_e('Phone','listinghub'); ?> : <?php echo esc_html($company_phone); ?></li>
+							<?php //if($company_phone!=''){  ?>
+							<li><?php //esc_html_e('Phone','listinghub'); ?> : <?php //echo esc_html($company_phone); ?></li>
 							<?php
-							}
+							//}
 							?>
-							<?php if($company_email!=''){  ?>
-							<li><?php esc_html_e('Email','listinghub'); ?> : <?php echo esc_html($company_email); ?></li>
+							<?php //if($company_email!=''){  ?>
+							<li><?php //esc_html_e('Email','listinghub'); ?> : <?php //echo esc_html($company_email); ?></li>
 							<?php
-							}
+							//}
 							?>
 							
-						</ul>
+						</ul> -->
 						<?php
 							}
 						?>
 					</div>
 					
 				</div>
-				<?php			
-					if(array_key_exists('open_status_table',$active_single_fields_saved)){ 
-						include(ep_listinghub_template.'/listing/single-template/business_hours.php');		
-					}
-					?>
 				<?php
-				if(array_key_exists('simillar_listing',$active_single_fields_saved)){
-					include(ep_listinghub_template.'/listing/single-template/similar-listings.php');			
-				}
+					// Dynamic section navigation: only show heading if section has data
+					$section_nav_labels = array(
+						'description'   => esc_html__('Description', 'listinghub'),
+						'video'         => esc_html__('Video', 'listinghub'),
+						'tag'           => esc_html__('What’s Included', 'listinghub'),
+						'location'      => esc_html__('Locations', 'listinghub'),
+						'image-gallery' => esc_html__('Gallery', 'listinghub'),
+						'faq'           => esc_html__('FAQs', 'listinghub'),
+					);
+					$section_nav_items = array();
+					if ( is_array( $active_single_fields_saved ) ) {
+						foreach ( $active_single_fields_saved as $field_key => $field_value ) {
+							if ( in_array( $field_key, $data_for_top ) || in_array( $field_key, $data_not_for_all_section ) ) {
+								continue;
+							}
+							if ( ! $listinghub_section_has_data( $field_key ) ) {
+								continue;
+							}
+							$section_id = 'section-' . $field_key;
+							if ( isset( $section_nav_labels[ $field_key ] ) ) {
+								$section_nav_items[ $section_id ] = $section_nav_labels[ $field_key ];
+							} else {
+								$section_nav_items[ $section_id ] = ucwords( str_replace( '_', ' ', $field_key ) );
+							}
+						}
+						if ( array_key_exists( 'review', $active_single_fields_saved ) && $listinghub_section_has_data( 'review' ) ) {
+							$section_nav_items['section-review'] = esc_html__( 'Reviews', 'listinghub' );
+						}
+					}
+					if ( ! empty( $section_nav_items ) ) :
+				?>
+					<div class="sidebar-border sidebar-jump">
+						<div class="toptitle mb-3"><?php esc_html_e('Jump to section', 'listinghub'); ?></div>
+						<ul class="list-unstyled">
+							<?php foreach ( $section_nav_items as $section_id => $label ) : ?>
+								<li class="mb-2"><a href="#<?php echo esc_attr( $section_id ); ?>" class="listing-section-link"><?php echo esc_html( $label ); ?></a></li>
+							<?php endforeach; ?>
+						</ul>
+					</div>
+				<?php
+					endif;
+				?>
+				<?php
+				// if(array_key_exists('simillar_listing',$active_single_fields_saved)){
+				// 	include(ep_listinghub_template.'/listing/single-template/similar-listings.php');			
+				// }
 				?>
 			</div>
 		</div>
+		<?php
+		// Similar listings at end of page – archive style (image slider + box)
+		if ( array_key_exists( 'simillar_listing', $active_single_fields_saved ) ) {
+			$listinghub_similar_bottom = get_posts( array(
+				'numberposts' => 4,
+				'post_type'   => $listinghub_directory_url,
+				'post__not_in' => array( (int) $listingid ),
+				'post_status'  => 'publish',
+				'orderby'      => 'rand',
+			) );
+			$defaul_feature_img = $main_class->listinghub_listing_default_image();
+			$active_archive_fields = listinghub_get_archive_fields_all();
+			$active_archive_icon_saved = get_option( 'listinghub_archive_icon_saved' );
+			if ( ! empty( $listinghub_similar_bottom ) ) :
+		?>
+		<div class="row mt-5 mb-5 pt-4 border-top listing-similar-bottom">
+			<div class="col-12">
+				<div class="toptitle mb-4"><?php esc_html_e( 'Similar listings', 'listinghub' ); ?></div>
+				<div class="row justify-content-center">
+					<?php
+					$i = 0;
+					foreach ( $listinghub_similar_bottom as $similar_post ) {
+						$id = $similar_post->ID;
+						$post = $similar_post;
+						setup_postdata( $post );
+						$post_author_id = (int) $similar_post->post_author;
+						$feature_img = '';
+						if ( has_post_thumbnail( $id ) ) {
+							$feature_image = wp_get_attachment_image_src( get_post_thumbnail_id( $id ), 'large' );
+							if ( ! empty( $feature_image[0] ) ) {
+								$feature_img = $feature_image[0];
+							}
+						}
+						if ( empty( $feature_img ) ) {
+							$feature_img = $defaul_feature_img;
+						}
+						$dir_data = array(
+							'title' => get_the_title( $id ),
+							'dlink' => get_permalink( $id ),
+							'address' => get_post_meta( $id, 'address', true ),
+							'image' => $feature_img,
+							'locations' => '',
+							'lat' => get_post_meta( $id, 'latitude', true ) ?: 0,
+							'lng' => get_post_meta( $id, 'longitude', true ) ?: 0,
+							'marker_icon' => '',
+						);
+						include( ep_listinghub_template . 'listing/single-template/archive-grid-block.php' );
+						$i++;
+					}
+					wp_reset_postdata();
+					?>
+				</div>
+			</div>
+		</div>
+		<?php
+			endif;
+		}
+		?>
 		
 	
 	</div>

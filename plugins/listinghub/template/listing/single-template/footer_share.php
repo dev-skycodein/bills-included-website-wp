@@ -32,7 +32,7 @@
 				}
 				if(array_key_exists('claim_button',$active_single_fields_saved)){ 
 					 ?>
-						<button type="button" class="btn btn-border mt-1 mb-2 " onclick="listinghub_claim_popup('<?php echo esc_html($listingid);?>')"><?php esc_html_e( 'Report', 'listinghub' ); ?></button>
+						<button type="button" class="btn btn-border mr-2 mt-2 mb-2 " onclick="listinghub_claim_popup('<?php echo esc_html($listingid);?>')"><?php esc_html_e( 'Report', 'listinghub' ); ?></button>
 					<?php
 					
 				}

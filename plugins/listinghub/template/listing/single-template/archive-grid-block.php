@@ -73,7 +73,7 @@ jQuery(document).ready(function($) {
                                 if ($slide != '') { ?>
                                     <div>
                                         <a href="<?php echo get_the_permalink($id);?>">
-                                            <img class="img-fluid rounded" src="<?php echo wp_get_attachment_url($slide); ?>">
+                                            <img class="img-fluid rounded mt-0" src="<?php echo wp_get_attachment_url($slide); ?>">
                                         </a>
                                     </div>
                                 <?php }

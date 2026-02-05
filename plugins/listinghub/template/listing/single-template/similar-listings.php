@@ -3,7 +3,7 @@
 	if(!isset($single_page_icon_saved)){$single_page_icon_saved=get_option('listinghub_single_icon_saved' );}
 	
 	$listinghub_similar = get_posts(array(
-	'numberposts'	=> '5',
+	'numberposts'	=> 3,
 	'post_type'		=> $listinghub_directory_url,
 	'post__not_in' => array(esc_html($listingid)),
 	'post_status'	=> 'publish',

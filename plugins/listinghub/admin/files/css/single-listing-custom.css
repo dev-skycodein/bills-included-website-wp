@@ -1,0 +1,125 @@
+/**
+ * Single Listing Template - Custom CSS
+ * Add your own styles for the single listing page here.
+ * This file is loaded only on the single listing view.
+ */
+
+/* Optional: smooth scroll for anchor links (JS handles click smooth scroll) */
+html {
+	scroll-behavior: smooth;
+}
+
+.single-listing-sidebar {
+	position: relative;
+}
+.sidebar-jump {
+	display: none;
+}
+@media (min-width: 992px) {
+	.sidebar-jump {
+		display: block;
+		position: sticky;
+		top: 120px;
+		background: #fff;
+	}
+}
+/* Jump to section – list */
+.sidebar-jump .list-unstyled {
+	margin: 0;
+	padding-left: 0;
+	list-style: none;
+}
+.sidebar-jump .listing-section-link {
+	display: block;
+	padding: 0.35rem 0 0.35rem 0.75rem;
+	margin-left: 0;
+	border-left: 3px solid transparent;
+	color: #111;
+	text-decoration: none;
+	transition: border-color 0.15s ease, font-weight 0.15s ease;
+}
+.sidebar-jump .listing-section-link:hover {
+	text-decoration: none;
+	color: #111;
+}
+/* Active link: yellow bar + bold (when section in view or after click) */
+.sidebar-jump .listing-section-link.active {
+	font-weight: 700;
+	border-left: 3px solid #9a6afe !important;
+	color: #111;
+}
+
+/* Similar listings at bottom – same box as archive. archive-listing.css + font-awesome (all.min.css) load when similar is enabled.
+   Scope archive card styles here so they win over single-listing.css and icons (e.g. money) use same Font Awesome as archive. */
+.listing-similar-bottom .card-border-round {
+	border-radius: 10px;
+	border: 0.88px solid rgba(141, 141, 170, 0.2);
+	background: #fff;
+	overflow: hidden;
+}
+.listing-similar-bottom .card-border-round:hover {
+	box-shadow: 0 9px 26px 0 rgb(72 56 56 / 10%);
+	border-color: rgba(85, 57, 57, 0.3);
+	transform: translateY(-2px);
+	transition: 0.2s;
+}
+.listing-similar-bottom .card-img-container {
+	position: relative;
+	overflow: hidden;
+}
+.listing-similar-bottom .card-img-container img,
+.listing-similar-bottom .gallery-slider img {
+	max-width: 100%;
+	width: 100%;
+	height: auto;
+	object-fit: cover;
+}
+.listing-similar-bottom .card-body {
+	padding: 0.75rem 1rem;
+}
+.listing-similar-bottom .btn-urgent-left,
+.listing-similar-bottom .btn-urgent-right {
+	position: absolute;
+	z-index: 2;
+}
+/* Use same Font Awesome as archive for icons in similar section (money, star, heart, etc.) */
+.listing-similar-bottom .fa,
+.listing-similar-bottom .fas,
+.listing-similar-bottom .far,
+.listing-similar-bottom .fa-solid,
+.listing-similar-bottom .fa-regular,
+.listing-similar-bottom .fab {
+	font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", var(--fa-style-family, "Font Awesome 6 Free");
+	font-weight: 900;
+	-moz-osx-font-smoothing: grayscale;
+	-webkit-font-smoothing: antialiased;
+	display: inline-block;
+	font-style: normal;
+	line-height: 1;
+}
+.listing-similar-bottom .far,
+.listing-similar-bottom .fa-regular {
+	font-weight: 400;
+}
+.inluded-section {
+    display: flex;
+    flex-wrap: wrap;
+	justify-content: start;
+    gap: 5%;
+}
+p.included-section-item {
+    width: 30%;
+}
+@media (max-width: 600px) {
+	.inluded-section{
+		gap: 10%;
+	}
+	p.included-section-item {
+		width: 40%;
+	}
+}
+@media (max-width: 400px) {
+	p.included-section-item {
+		width: 100%;
+	}
+}

@@ -446,3 +446,47 @@ function listinghub_isValidEmailAddress(emailAddress) {
 	return pattern.test(emailAddress);
 }
 
+/* Jump to section: smooth scroll with sticky header offset (120px) + active link on scroll/click */
+jQuery(document).ready(function($) {
+	var $links = $('.listing-section-link');
+	if (!$links.length) return;
+	var stickyHeaderOffset = 120;
+	var ignoreObserverUntil = 0;
+	function scrollToSection(el) {
+		if (!el) return;
+		var top = el.getBoundingClientRect().top + (window.pageYOffset || document.documentElement.scrollTop);
+		var targetTop = top - stickyHeaderOffset;
+		window.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+	}
+	$links.on('click', function(e) {
+		var href = $(this).attr('href');
+		if (!href || href.indexOf('#') !== 0) return;
+		var id = href.slice(1);
+		var section = document.getElementById(id);
+		if (section) {
+			e.preventDefault();
+			$links.removeClass('active');
+			$(this).addClass('active');
+			ignoreObserverUntil = Date.now() + 1200;
+			scrollToSection(section);
+		}
+	});
+	if (typeof IntersectionObserver !== 'undefined') {
+		var observer = new IntersectionObserver(function(entries) {
+			if (Date.now() < ignoreObserverUntil) return;
+			entries.forEach(function(entry) {
+				if (!entry.isIntersecting) return;
+				var id = entry.target.id;
+				$links.removeClass('active').filter('[href="#' + id + '"]').addClass('active');
+			});
+		}, { rootMargin: '-' + (stickyHeaderOffset + 10) + 'px 0px -60% 0px', threshold: 0 });
+		$links.each(function() {
+			var href = $(this).attr('href');
+			if (href && href.indexOf('#') === 0) {
+				var el = document.getElementById(href.slice(1));
+				if (el) observer.observe(el);
+			}
+		});
+	}
+});
+
