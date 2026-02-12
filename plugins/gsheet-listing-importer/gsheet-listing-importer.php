@@ -11,6 +11,11 @@ if (!defined('ABSPATH')) {
 }
 
 const GSLI_SETTINGS_GROUP = 'gsli_settings';
+const GSLI_IMAGE_ONLY_TEST = false;
+// Prevent overlapping image batch runs (seconds).
+const GSLI_IMAGE_BATCH_LOCK_TTL = 600;
+// Throttle between image downloads/uploads (microseconds).
+const GSLI_IMAGE_THROTTLE_USLEEP = 250000;
 const GSLI_OPTION_SHEET_URL = 'gsli_sheet_url';
 const GSLI_OPTION_SHEET_ID = 'gsli_sheet_id';
 const GSLI_OPTION_SHEET_GID = 'gsli_sheet_gid';
@@ -21,6 +26,13 @@ const GSLI_OPTION_ENDPOINT_TOKEN = 'gsli_endpoint_token';
 add_action('admin_menu', 'gsli_register_admin_menu');
 add_action('admin_init', 'gsli_register_settings');
 add_action('admin_post_gsli_import', 'gsli_handle_import');
+add_action('admin_post_gsli_stop_queue', 'gsli_handle_stop_queue');
+add_action('admin_post_gsli_delete_listings', 'gsli_handle_delete_listings');
+add_action('gsli_process_images_batch', 'gsli_process_images_batch');
+
+add_filter('cron_schedules', 'gsli_add_cron_schedules');
+add_action('init', 'gsli_register_queue_post_type');
+add_action('init', 'gsli_register_agency_post_type');
 
 function gsli_get_log_dir() {
 	return plugin_dir_path(__FILE__) . 'logs' . DIRECTORY_SEPARATOR;
@@ -48,6 +60,44 @@ function gsli_log($message, $context = array()) {
 	}
 	$line .= PHP_EOL;
 	@file_put_contents($GLOBALS['gsli_log_file'], $line, FILE_APPEND);
+}
+
+function gsli_add_cron_schedules($schedules) {
+	if (!isset($schedules['gsli_2min'])) {
+		$schedules['gsli_2min'] = array(
+			'interval' => 120,
+			'display' => 'Every 2 minutes (GSLI)',
+		);
+	}
+	return $schedules;
+}
+
+function gsli_register_queue_post_type() {
+	register_post_type('gsli_queue', array(
+		'label' => 'GSLI Queue',
+		'public' => false,
+		'show_ui' => false,
+		'show_in_menu' => false,
+		'supports' => array('title'),
+	));
+}
+
+function gsli_register_agency_post_type() {
+	register_post_type('gsli_agency', array(
+		'label' => 'Agencies',
+		'labels' => array(
+			'name'          => __('Agencies', 'gsheet-listing-importer'),
+			'singular_name' => __('Agency', 'gsheet-listing-importer'),
+		),
+		'public' => true,
+		'has_archive' => true,
+		'rewrite' => array(
+			'slug' => 'agencies',
+		),
+		'show_ui' => true,
+		'show_in_menu' => true,
+		'supports' => array('title', 'editor', 'thumbnail'),
+	));
 }
 
 function gsli_register_admin_menu() {
@@ -113,6 +163,7 @@ function gsli_render_admin_page() {
 	$skipped = isset($_GET['skipped']) ? (int) $_GET['skipped'] : 0;
 	$error = isset($_GET['error']) ? sanitize_text_field(wp_unslash($_GET['error'])) : '';
 	$log_file = isset($_GET['log']) ? sanitize_text_field(wp_unslash($_GET['log'])) : '';
+	$delete_result = isset($_GET['gsli_deleted']) ? (int) $_GET['gsli_deleted'] : 0;
 
 	?>
 	<div class="wrap">
@@ -131,6 +182,12 @@ function gsli_render_admin_page() {
 				<?php if ($log_file) : ?>
 					<p><?php echo esc_html('Log file: ' . $log_file); ?></p>
 				<?php endif; ?>
+			</div>
+		<?php endif; ?>
+
+		<?php if ($delete_result > 0) : ?>
+			<div class="notice notice-success is-dismissible">
+				<p><?php echo esc_html(sprintf(_n('%d listing deleted.', '%d listings deleted.', $delete_result, 'gsheet-listing-importer'), $delete_result)); ?></p>
 			</div>
 		<?php endif; ?>
 
@@ -195,6 +252,92 @@ function gsli_render_admin_page() {
 			<input type="hidden" name="action" value="gsli_import" />
 			<?php submit_button('Import Listings', 'primary'); ?>
 		</form>
+
+		<h2>Stop Image Queue</h2>
+		<p>Clears queued image imports and stops the cron schedule.</p>
+		<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+			<?php wp_nonce_field('gsli_stop_queue_action', 'gsli_stop_queue_nonce'); ?>
+			<input type="hidden" name="action" value="gsli_stop_queue" />
+			<?php submit_button('Stop Image Queue', 'secondary'); ?>
+		</form>
+
+		<hr />
+
+		<h2>Imported Listings</h2>
+		<p>Listings added by this plugin (identified by <code>unique_id</code>). Delete removes the post, all meta, and associated media (featured + gallery images).</p>
+		<?php
+		$imported = gsli_get_imported_listings();
+		if (!empty($imported)) :
+			$post_type = gsli_get_listing_post_type();
+			$edit_base = admin_url('post.php?post=%d&action=edit');
+		?>
+		<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="gsli-delete-listings-form">
+			<?php wp_nonce_field('gsli_delete_listings_action', 'gsli_delete_listings_nonce'); ?>
+			<input type="hidden" name="action" value="gsli_delete_listings" />
+			<table class="wp-list-table widefat fixed striped">
+				<thead>
+					<tr>
+						<td class="check-column">
+							<input type="checkbox" id="gsli-select-all" />
+						</td>
+						<th scope="col">ID</th>
+						<th scope="col">Title</th>
+						<th scope="col">Unique ID</th>
+						<th scope="col">Status</th>
+						<th scope="col">Date</th>
+						<th scope="col">Images</th>
+						<th scope="col">Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ($imported as $post) :
+						$unique_id = get_post_meta($post->ID, 'unique_id', true);
+						$edit_url = sprintf($edit_base, $post->ID);
+						$view_url = get_permalink($post->ID);
+						$gallery_ids = get_post_meta($post->ID, 'image_gallery_ids', true);
+						$image_count = 0;
+						$ids = array();
+						if (!empty($gallery_ids)) {
+							$ids = array_filter(array_map('intval', explode(',', $gallery_ids)));
+							$image_count = count($ids);
+						}
+						$thumb_id = get_post_thumbnail_id($post->ID);
+						if ($thumb_id) {
+							if (empty($ids) || !in_array((int) $thumb_id, $ids, true)) {
+								$image_count++;
+							}
+						}
+					?>
+					<tr>
+						<th scope="row" class="check-column">
+							<input type="checkbox" name="gsli_delete_ids[]" value="<?php echo esc_attr($post->ID); ?>" class="gsli-row-checkbox" />
+						</th>
+						<td><?php echo esc_html($post->ID); ?></td>
+						<td><strong><?php echo esc_html($post->post_title); ?></strong></td>
+						<td><code><?php echo esc_html($unique_id); ?></code></td>
+						<td><?php echo esc_html($post->post_status); ?></td>
+						<td><?php echo esc_html(get_the_date('', $post)); ?></td>
+						<td><?php echo esc_html($image_count); ?></td>
+						<td>
+							<a href="<?php echo esc_url($edit_url); ?>"><?php esc_html_e('Edit', 'gsheet-listing-importer'); ?></a>
+							| <a href="<?php echo esc_url($view_url); ?>" target="_blank"><?php esc_html_e('View', 'gsheet-listing-importer'); ?></a>
+						</td>
+					</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+			<p class="submit">
+				<button type="submit" class="button button-secondary" name="gsli_delete_confirm" value="1" onclick="return confirm('<?php echo esc_js(__('Permanently delete selected listings and all their images?', 'gsheet-listing-importer')); ?>');"><?php esc_html_e('Delete selected', 'gsheet-listing-importer'); ?></button>
+			</p>
+		</form>
+		<script>
+		document.getElementById('gsli-select-all').addEventListener('change', function() {
+			document.querySelectorAll('.gsli-row-checkbox').forEach(function(cb) { cb.checked = this.checked; }, this);
+		});
+		</script>
+		<?php else : ?>
+		<p><?php esc_html_e('No listings imported by this plugin yet.', 'gsheet-listing-importer'); ?></p>
+		<?php endif; ?>
 	</div>
 	<?php
 }
@@ -205,6 +348,7 @@ function gsli_handle_import() {
 	}
 
 	check_admin_referer('gsli_import_action', 'gsli_import_nonce');
+	$import_start = microtime(true);
 	$log_filename = gsli_init_log();
 
 	$source = gsli_fetch_source_rows();
@@ -270,9 +414,27 @@ function gsli_handle_import() {
 			continue;
 		}
 
+		if (GSLI_IMAGE_ONLY_TEST) {
+			$queue_post_id = gsli_get_queue_post_id();
+			if (!empty($data['images'])) {
+				gsli_queue_images($queue_post_id, $data['images']);
+				gsli_log('Row queued (image-only test).', array('row' => $index + 1, 'queue_post_id' => $queue_post_id));
+			} else {
+				gsli_log('Row has no images to queue (image-only test).', array('row' => $index + 1));
+			}
+			$skipped++;
+			continue;
+		}
+
 		$post_status = isset($data['status']) ? sanitize_key($data['status']) : 'publish';
 		if (!in_array($post_status, array('publish', 'draft', 'pending', 'private'), true)) {
 			$post_status = 'publish';
+		}
+
+		$defer_publish = false;
+		if ($post_status === 'publish' && !empty($data['images'])) {
+			$post_status = 'draft';
+			$defer_publish = true;
 		}
 
 		$description = isset($data['description']) ? $data['description'] : '';
@@ -312,10 +474,18 @@ function gsli_handle_import() {
 
 		if ($existing_id && !is_wp_error($result)) {
 			gsli_apply_listinghub_mapping($existing_id, $data, $post_type);
+			if ($defer_publish) {
+				update_post_meta($existing_id, '_gsli_target_status', 'publish');
+				gsli_log('Listing set to draft pending images.', array('row' => $index + 1, 'post_id' => $existing_id));
+			} else {
+				delete_post_meta($existing_id, '_gsli_target_status');
+			}
 		}
 	}
 
 	gsli_log('Import finished.', array('created' => $created, 'updated' => $updated, 'skipped' => $skipped));
+	$import_duration = microtime(true) - $import_start;
+	gsli_log('Import duration.', array('seconds' => round($import_duration, 2)));
 	wp_safe_redirect(add_query_arg(array(
 		'page' => 'gsli-import',
 		'gsli_import' => 'success',
@@ -323,6 +493,104 @@ function gsli_handle_import() {
 		'updated' => $updated,
 		'skipped' => $skipped,
 		'log' => $log_filename,
+	), admin_url('admin.php')));
+	exit;
+}
+
+function gsli_handle_stop_queue() {
+	if (!current_user_can('manage_options')) {
+		wp_die('Unauthorized', 403);
+	}
+
+	check_admin_referer('gsli_stop_queue_action', 'gsli_stop_queue_nonce');
+	gsli_init_log();
+	gsli_log('Stop queue requested.');
+
+	wp_clear_scheduled_hook('gsli_process_images_batch');
+	delete_transient('gsli_image_batch_lock');
+
+	$cleared = 0;
+	$query = new WP_Query(array(
+		'post_type' => array('gsli_queue', 'listing'),
+		'posts_per_page' => 200,
+		'post_status' => 'any',
+		'meta_key' => '_pending_image_urls',
+		'orderby' => 'ID',
+		'order' => 'ASC',
+	));
+
+	if ($query->have_posts()) {
+		while ($query->have_posts()) {
+			$query->the_post();
+			$post_id = get_the_ID();
+			delete_post_meta($post_id, '_pending_image_urls');
+			delete_post_meta($post_id, '_pending_image_index');
+			$cleared++;
+		}
+		wp_reset_postdata();
+	}
+
+	gsli_log('Stop queue completed.', array('cleared_posts' => $cleared));
+
+	wp_safe_redirect(add_query_arg(array(
+		'page' => 'gsli-import',
+		'gsli_import' => 'success',
+		'created' => 0,
+		'updated' => 0,
+		'skipped' => 0,
+		'log' => isset($GLOBALS['gsli_log_file']) ? basename($GLOBALS['gsli_log_file']) : '',
+	), admin_url('admin.php')));
+	exit;
+}
+
+function gsli_handle_delete_listings() {
+	if (!current_user_can('manage_options')) {
+		wp_die('Unauthorized', 403);
+	}
+
+	check_admin_referer('gsli_delete_listings_action', 'gsli_delete_listings_nonce');
+
+	if (empty($_POST['gsli_delete_ids']) || !is_array($_POST['gsli_delete_ids'])) {
+		wp_safe_redirect(add_query_arg('page', 'gsli-import', admin_url('admin.php')));
+		exit;
+	}
+
+	$ids = array_map('intval', $_POST['gsli_delete_ids']);
+	$ids = array_filter($ids);
+	$deleted = 0;
+
+	foreach ($ids as $post_id) {
+		if (!$post_id) {
+			continue;
+		}
+		$post = get_post($post_id);
+		if (!$post || get_post_meta($post_id, 'unique_id', true) === '') {
+			continue;
+		}
+
+		$thumb_id = get_post_thumbnail_id($post_id);
+		if ($thumb_id) {
+			wp_delete_attachment($thumb_id, true);
+		}
+
+		$gallery_ids = get_post_meta($post_id, 'image_gallery_ids', true);
+		if (!empty($gallery_ids)) {
+			$gallery_ids = array_filter(array_map('intval', explode(',', $gallery_ids)));
+			foreach ($gallery_ids as $att_id) {
+				if ($att_id) {
+					wp_delete_attachment($att_id, true);
+				}
+			}
+		}
+
+		if (wp_delete_post($post_id, true)) {
+			$deleted++;
+		}
+	}
+
+	wp_safe_redirect(add_query_arg(array(
+		'page' => 'gsli-import',
+		'gsli_deleted' => $deleted,
 	), admin_url('admin.php')));
 	exit;
 }
@@ -583,6 +851,23 @@ function gsli_get_listing_post_type() {
 	return $listinghub_directory_url;
 }
 
+function gsli_get_imported_listings() {
+	$post_type = gsli_get_listing_post_type();
+	$query = new WP_Query(array(
+		'post_type' => $post_type,
+		'post_status' => 'any',
+		'posts_per_page' => 500,
+		'meta_key' => 'unique_id',
+		'meta_compare' => 'EXISTS',
+		'orderby' => 'date',
+		'order' => 'DESC',
+	));
+	if (!$query->have_posts()) {
+		return array();
+	}
+	return $query->posts;
+}
+
 function gsli_find_existing_post_id($post_type, $data, $postarr) {
 	$lookup_id = '';
 	if (!empty($data['unique_id'])) {
@@ -614,6 +899,81 @@ function gsli_find_existing_post_id($post_type, $data, $postarr) {
 	return 0;
 }
 
+function gsli_get_or_create_agency($data) {
+	$agency_key = '';
+
+	if (!empty($data['agency_id'])) {
+		$agency_key = sanitize_key($data['agency_id']);
+	} elseif (!empty($data['agency_website'])) {
+		$host = wp_parse_url($data['agency_website'], PHP_URL_HOST);
+		if (!empty($host)) {
+			$host = preg_replace('/^www\./i', '', (string) $host);
+			$agency_key = sanitize_key($host);
+		}
+	} elseif (!empty($data['agency_name'])) {
+		$agency_key = sanitize_title($data['agency_name']);
+	}
+
+	if ($agency_key === '') {
+		return 0;
+	}
+
+	$existing = get_posts(array(
+		'post_type'   => 'gsli_agency',
+		'post_status' => 'any',
+		'meta_key'    => 'agency_id',
+		'meta_value'  => $agency_key,
+		'fields'      => 'ids',
+		'numberposts' => 1,
+	));
+
+	if (!empty($existing)) {
+		return (int) $existing[0];
+	}
+
+	$title = !empty($data['agency_name']) ? sanitize_text_field($data['agency_name']) : $agency_key;
+
+	$postarr = array(
+		'post_title'  => $title,
+		'post_name'   => $agency_key,
+		'post_type'   => 'gsli_agency',
+		'post_status' => 'publish',
+	);
+
+	$agency_post_id = wp_insert_post($postarr, true);
+	if (is_wp_error($agency_post_id)) {
+		gsli_log('Agency create failed.', array('agency_id' => $agency_key, 'error' => $agency_post_id->get_error_message()));
+		return 0;
+	}
+
+	$agency_post_id = (int) $agency_post_id;
+
+	update_post_meta($agency_post_id, 'agency_id', $agency_key);
+
+	if (!empty($data['agency_email'])) {
+		update_post_meta($agency_post_id, 'agency_email', sanitize_text_field($data['agency_email']));
+	}
+	if (!empty($data['agency_phone'])) {
+		update_post_meta($agency_post_id, 'agency_phone', sanitize_text_field($data['agency_phone']));
+	}
+	if (!empty($data['agency_website'])) {
+		update_post_meta($agency_post_id, 'agency_website', esc_url_raw($data['agency_website']));
+	}
+	if (!empty($data['address'])) {
+		update_post_meta($agency_post_id, 'agency_address', sanitize_text_field($data['address']));
+	}
+	if (!empty($data['city'])) {
+		update_post_meta($agency_post_id, 'agency_city', sanitize_text_field($data['city']));
+	}
+
+	// Placeholder for future claim flow – real owner will be set after "Claim my agency".
+	update_post_meta($agency_post_id, 'agency_owner', 0);
+
+	gsli_log('Agency created.', array('agency_post_id' => $agency_post_id, 'agency_id' => $agency_key));
+
+	return $agency_post_id;
+}
+
 function gsli_apply_listinghub_mapping($post_id, $data, $post_type) {
 	if (!empty($data['unique_id'])) {
 		$unique_id = sanitize_text_field($data['unique_id']);
@@ -622,6 +982,20 @@ function gsli_apply_listinghub_mapping($post_id, $data, $post_type) {
 
 	// Force listing to use its own contact info fields
 	update_post_meta($post_id, 'listing_contact_source', 'new_value');
+
+	// Store the scraped agency identifier on the listing so it can be grouped later.
+	if (!empty($data['agency_id'])) {
+		$agency_key = sanitize_key($data['agency_id']);
+		update_post_meta($post_id, 'agency_id', $agency_key);
+	} else {
+		$agency_key = '';
+	}
+
+	// Ensure an agency profile (CPT) exists and is linked to this scraped agency.
+	$agency_post_id = gsli_get_or_create_agency($data);
+	if ($agency_post_id) {
+		update_post_meta($post_id, 'agency_post_id', $agency_post_id);
+	}
 
 	if (!empty($data['price'])) {
 		update_post_meta($post_id, 'monthly_rent', sanitize_text_field($data['price']));
@@ -669,13 +1043,7 @@ function gsli_apply_listinghub_mapping($post_id, $data, $post_type) {
 	}
 
 	if (!empty($data['images'])) {
-		$image_ids = gsli_import_images($post_id, $data['images']);
-		if (!empty($image_ids)) {
-			update_post_meta($post_id, 'image_gallery_ids', implode(',', $image_ids));
-			if (!has_post_thumbnail($post_id)) {
-				set_post_thumbnail($post_id, $image_ids[0]);
-			}
-		}
+		gsli_queue_images($post_id, $data['images']);
 	}
 }
 
@@ -739,7 +1107,7 @@ function gsli_split_list($raw_value) {
 }
 
 function gsli_import_images($post_id, $raw_value) {
-	$urls = gsli_split_list($raw_value);
+	$urls = is_array($raw_value) ? $raw_value : gsli_split_list($raw_value);
 	if (empty($urls)) {
 		gsli_log('No image URLs found for row.', array('post_id' => $post_id));
 		return array();
@@ -755,6 +1123,23 @@ function gsli_import_images($post_id, $raw_value) {
 		if ($url === '') {
 			continue;
 		}
+
+		// First, try to reuse an existing attachment for this URL.
+		$existing = get_posts(array(
+			'post_type'   => 'attachment',
+			'post_status' => 'any',
+			'meta_key'    => '_gsli_source_url',
+			'meta_value'  => $url,
+			'fields'      => 'ids',
+			'numberposts' => 1,
+		));
+		if (!empty($existing)) {
+			$attachment_id = (int) $existing[0];
+			$ids[] = $attachment_id;
+			gsli_log('Image reused.', array('post_id' => $post_id, 'attachment_id' => $attachment_id, 'url' => $url));
+			continue;
+		}
+
 		$tmp = download_url($url);
 		if (is_wp_error($tmp)) {
 			gsli_log('Image download failed.', array('post_id' => $post_id, 'url' => $url, 'error' => $tmp->get_error_message()));
@@ -770,12 +1155,210 @@ function gsli_import_images($post_id, $raw_value) {
 			@unlink($file_array['tmp_name']);
 			continue;
 		}
-		$ids[] = (int) $attachment_id;
-		gsli_log('Image uploaded.', array('post_id' => $post_id, 'attachment_id' => (int) $attachment_id, 'url' => $url));
-		usleep(750000);
+		$attachment_id = (int) $attachment_id;
+		$ids[] = $attachment_id;
+		// Store the source URL on the attachment so future imports can reuse it.
+		update_post_meta($attachment_id, '_gsli_source_url', $url);
+		gsli_log('Image uploaded.', array('post_id' => $post_id, 'attachment_id' => $attachment_id, 'url' => $url));
+		if (GSLI_IMAGE_THROTTLE_USLEEP > 0) {
+			usleep(GSLI_IMAGE_THROTTLE_USLEEP);
+		}
 	}
 
 	return $ids;
+}
+
+function gsli_queue_images($post_id, $raw_value) {
+	$urls = gsli_split_list($raw_value);
+	if (empty($urls)) {
+		gsli_log('No images to queue.', array('post_id' => $post_id));
+		return;
+	}
+
+	$existing = get_post_meta($post_id, '_pending_image_urls', true);
+	if (!is_array($existing)) {
+		$existing = array();
+	}
+	$merged = array_values(array_unique(array_merge($existing, $urls)));
+	update_post_meta($post_id, '_pending_image_urls', $merged);
+	if (!get_post_meta($post_id, '_pending_image_index', true)) {
+		update_post_meta($post_id, '_pending_image_index', 0);
+	}
+	gsli_log('Queued images for background import.', array('post_id' => $post_id, 'count' => count($urls), 'total_pending' => count($merged)));
+
+	gsli_schedule_image_cron();
+}
+
+function gsli_schedule_image_cron() {
+	if (!wp_next_scheduled('gsli_process_images_batch')) {
+		$start = time() + 120;
+		wp_schedule_event($start, 'gsli_2min', 'gsli_process_images_batch');
+		gsli_log('Scheduled image import cron.', array('start_in_seconds' => 120, 'interval_seconds' => 120));
+	}
+}
+
+function gsli_process_images_batch() {
+	if (empty($GLOBALS['gsli_log_file'])) {
+		gsli_init_log();
+	}
+	$batch_start = microtime(true);
+
+	// Allow batch to finish within lock window (avoids PHP max_execution_time killing mid-batch).
+	if (function_exists('set_time_limit')) {
+		@set_time_limit(GSLI_IMAGE_BATCH_LOCK_TTL);
+	}
+
+	if (get_transient('gsli_image_batch_lock')) {
+		gsli_log('Image batch skipped (lock active).');
+		return;
+	}
+	set_transient('gsli_image_batch_lock', 1, GSLI_IMAGE_BATCH_LOCK_TTL);
+
+	$batch_limit = 25;
+	$total_processed = 0;
+
+	$query = new WP_Query(array(
+		'post_type' => array('gsli_queue', 'listing'),
+		'posts_per_page' => 10,
+		'post_status' => 'any',
+		'meta_key' => '_pending_image_urls',
+		'orderby' => 'ID',
+		'order' => 'ASC',
+	));
+
+	gsli_log('Image batch started.', array('batch_limit' => $batch_limit, 'posts_found' => $query->post_count));
+
+	// If there is no work left, unschedule further batch processing to avoid idle runs.
+	if ($query->post_count === 0) {
+		wp_clear_scheduled_hook('gsli_process_images_batch');
+		delete_transient('gsli_image_batch_lock');
+		gsli_log('No pending images. Unscheduling image batch cron.', array());
+		return;
+	}
+
+	if ($query->have_posts()) {
+		while ($query->have_posts()) {
+			$query->the_post();
+			$post_id = get_the_ID();
+
+			$pending_urls = get_post_meta($post_id, '_pending_image_urls', true);
+			if (empty($pending_urls) || !is_array($pending_urls)) {
+				delete_post_meta($post_id, '_pending_image_urls');
+				delete_post_meta($post_id, '_pending_image_index');
+				continue;
+			}
+
+			$index = (int) get_post_meta($post_id, '_pending_image_index', true);
+			$remaining = array_slice($pending_urls, $index, $batch_limit);
+			if (empty($remaining)) {
+				delete_post_meta($post_id, '_pending_image_urls');
+				delete_post_meta($post_id, '_pending_image_index');
+				gsli_log('Image queue cleared (no remaining).', array('post_id' => $post_id));
+				gsli_maybe_publish_after_images($post_id);
+				continue;
+			}
+
+			$ids = gsli_import_images($post_id, $remaining);
+			if (!empty($ids)) {
+				$existing = get_post_meta($post_id, 'image_gallery_ids', true);
+				$existing_ids = array();
+				if (!empty($existing)) {
+					$existing_ids = array_filter(array_map('intval', explode(',', $existing)));
+				}
+				$merged = array_values(array_unique(array_merge($existing_ids, $ids)));
+				update_post_meta($post_id, 'image_gallery_ids', implode(',', $merged));
+				if (!has_post_thumbnail($post_id)) {
+					set_post_thumbnail($post_id, $ids[0]);
+				}
+			}
+
+			$processed_count = count($remaining);
+			$index += $processed_count;
+			update_post_meta($post_id, '_pending_image_index', $index);
+			wp_cache_delete($post_id, 'post_meta');
+			$total_processed += $processed_count;
+
+			gsli_log('Image batch processed.', array(
+				'post_id' => $post_id,
+				'processed' => count($remaining),
+				'next_index' => $index,
+				'remaining_total' => max(0, count($pending_urls) - $index),
+			));
+
+			if ($index >= count($pending_urls)) {
+				delete_post_meta($post_id, '_pending_image_urls');
+				delete_post_meta($post_id, '_pending_image_index');
+				gsli_log('Image queue cleared (completed).', array('post_id' => $post_id));
+				gsli_maybe_publish_after_images($post_id);
+			}
+
+			if ($total_processed >= $batch_limit) {
+				break;
+			}
+		}
+		wp_reset_postdata();
+	}
+
+	$batch_duration = microtime(true) - $batch_start;
+	gsli_log('Image batch finished.', array(
+		'processed_total' => $total_processed,
+		'duration_seconds' => round($batch_duration, 2),
+	));
+	delete_transient('gsli_image_batch_lock');
+}
+
+function gsli_maybe_publish_after_images($post_id) {
+	$target_status = get_post_meta($post_id, '_gsli_target_status', true);
+	if ($target_status !== 'publish') {
+		return;
+	}
+
+	if (get_post_status($post_id) !== 'draft') {
+		delete_post_meta($post_id, '_gsli_target_status');
+		return;
+	}
+
+	$result = wp_update_post(array(
+		'ID' => $post_id,
+		'post_status' => 'publish',
+	), true);
+
+	if (!is_wp_error($result)) {
+		delete_post_meta($post_id, '_gsli_target_status');
+		gsli_log('Listing published after image import.', array('post_id' => $post_id));
+		return;
+	}
+
+	gsli_log('Listing publish failed after image import.', array(
+		'post_id' => $post_id,
+		'error' => $result->get_error_message(),
+	));
+}
+
+function gsli_get_queue_post_id() {
+	$existing = get_posts(array(
+		'post_type' => 'gsli_queue',
+		'post_status' => 'any',
+		'meta_key' => '_gsli_queue',
+		'meta_value' => '1',
+		'fields' => 'ids',
+		'numberposts' => 1,
+	));
+	if (!empty($existing)) {
+		return (int) $existing[0];
+	}
+
+	$post_id = wp_insert_post(array(
+		'post_type' => 'gsli_queue',
+		'post_status' => 'private',
+		'post_title' => 'GSLI Image Queue',
+	), true);
+	if (is_wp_error($post_id)) {
+		gsli_log('Failed to create queue post.', array('error' => $post_id->get_error_message()));
+		return 0;
+	}
+	update_post_meta($post_id, '_gsli_queue', '1');
+	return (int) $post_id;
 }
 
 function gsli_format_rich_text($description) {
