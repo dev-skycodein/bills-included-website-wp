@@ -12,6 +12,34 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Simple logging for Claim Your Agency, similar in spirit to GSLI logging.
+ * Logs are written to wp-content/plugins/claim-your-agency/logs/*.log
+ */
+function cya_get_log_dir() {
+	return plugin_dir_path( __FILE__ ) . 'logs' . DIRECTORY_SEPARATOR;
+}
+
+function cya_log( $message, $context = array() ) {
+	$dir = cya_get_log_dir();
+	if ( ! is_dir( $dir ) ) {
+		wp_mkdir_p( $dir );
+	}
+
+	// Single rolling log file per day.
+	$filename = 'cya-' . gmdate( 'Ymd' ) . '.log';
+	$filepath = $dir . $filename;
+
+	$timestamp = gmdate( 'Y-m-d H:i:s' );
+	$line      = '[' . $timestamp . '] ' . $message;
+	if ( ! empty( $context ) ) {
+		$line .= ' | ' . wp_json_encode( $context );
+	}
+	$line .= PHP_EOL;
+
+	@file_put_contents( $filepath, $line, FILE_APPEND );
+}
+
+/**
  * Register the Agency Claim CPT.
  */
 function cya_register_claim_cpt() {
@@ -163,8 +191,26 @@ function cya_handle_claim_status_change() {
 
 	if ( $action === 'approve' ) {
 		update_post_meta( $post_id, 'cya_status', 'approved' );
+		cya_log(
+			'Claim approved by admin.',
+			array(
+				'claim_id'  => $post_id,
+				'admin_id'  => get_current_user_id(),
+				'admin_ip'  => isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '',
+				'user_agent'=> isset( $_SERVER['HTTP_USER_AGENT'] ) ? substr( sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ), 0, 255 ) : '',
+			)
+		);
 	} elseif ( $action === 'reject' ) {
 		update_post_meta( $post_id, 'cya_status', 'rejected' );
+		cya_log(
+			'Claim rejected by admin.',
+			array(
+				'claim_id'  => $post_id,
+				'admin_id'  => get_current_user_id(),
+				'admin_ip'  => isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '',
+				'user_agent'=> isset( $_SERVER['HTTP_USER_AGENT'] ) ? substr( sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ), 0, 255 ) : '',
+			)
+		);
 	}
 
 	// Redirect back to the list table or edit screen to avoid resubmission.
@@ -350,86 +396,136 @@ function cya_render_settings_page() {
 
 /**
  * Shortcode for Firebase Email Link callback page.
- * Usage: create a WP page (e.g. /agency-login-callback) and place [agency_login_callback] in its content.
- * This will load the firebase-sdk.js module so the page is ready for Email Link completion logic.
+ * No localStorage: claim_id comes from URL only; email from user form. Works on any device.
  */
 function cya_render_agency_login_callback() {
-	$firebase_sdk_url = plugins_url( 'firebase-sdk.js', __FILE__ );
+	$firebase_sdk_url = plugins_url( 'firebase-sdk.js', __FILE__ ) . '?ver=2';
+	$root_id          = 'cya-agency-login-callback-root';
+	$form_id          = 'cya-callback-email-form';
+	$email_input_id   = 'cya-callback-email';
+	$msg_id           = 'cya-callback-msg';
 
 	ob_start();
 	?>
-	<div id="cya-agency-login-callback-root"></div>
+	<div id="<?php echo esc_attr( $root_id ); ?>">
+		<p class="cya-callback-loading"><?php esc_html_e( 'Loading…', 'claim-your-agency' ); ?></p>
+	</div>
 	<script type="module" src="<?php echo esc_url( $firebase_sdk_url ); ?>"></script>
+	<style>
+		.cya-callback-form { max-width: 360px; margin: 1em 0; }
+		.cya-callback-form label { display: block; margin-bottom: 0.25em; font-weight: 600; }
+		.cya-callback-form input[type="email"] { width: 100%; padding: 8px 12px; margin-bottom: 12px; box-sizing: border-box; }
+		.cya-callback-form button { padding: 10px 20px; cursor: pointer; }
+		.cya-callback-msg { margin-top: 1em; padding: 10px; border-radius: 4px; }
+		.cya-callback-msg.success { background: #d4edda; color: #155724; }
+		.cya-callback-msg.error { background: #f8d7da; color: #721c24; }
+	</style>
 	<script>
 		(function() {
-			var cyaAjaxUrl    = <?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>;
-			var cyaAjaxNonce  = <?php echo wp_json_encode( wp_create_nonce( 'cya_claim_nonce' ) ); ?>;
+			var cyaAjaxUrl   = <?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>;
+			var cyaAjaxNonce = <?php echo wp_json_encode( wp_create_nonce( 'cya_claim_nonce' ) ); ?>;
+			var rootId = <?php echo wp_json_encode( $root_id ); ?>;
+			var formId = <?php echo wp_json_encode( $form_id ); ?>;
+			var emailInputId = <?php echo wp_json_encode( $email_input_id ); ?>;
+			var msgId = <?php echo wp_json_encode( $msg_id ); ?>;
 
 			function getQueryParam(name) {
 				var params = new URLSearchParams(window.location.search);
 				return params.get(name);
 			}
 
+			function showForm(root) {
+				root.innerHTML =
+					'<p><?php echo esc_js( __( 'To complete verification, enter the email address where you received the sign-in link.', 'claim-your-agency' ) ); ?></p>' +
+					'<form id="' + formId + '" class="cya-callback-form">' +
+					'<label for="' + emailInputId + '"><?php echo esc_js( __( 'Email address', 'claim-your-agency' ) ); ?></label>' +
+					'<input type="email" id="' + emailInputId + '" name="email" required placeholder="<?php echo esc_js( __( 'you@example.com', 'claim-your-agency' ) ); ?>">' +
+					'<button type="submit"><?php echo esc_js( __( 'Verify email', 'claim-your-agency' ) ); ?></button>' +
+					'</form>' +
+					'<div id="' + msgId + '" class="cya-callback-msg" style="display:none;"></div>';
+			}
+
+			function showMessage(root, html, isError) {
+				var msgEl = document.getElementById(msgId);
+				if (msgEl) {
+					msgEl.style.display = 'block';
+					msgEl.className = 'cya-callback-msg ' + (isError ? 'error' : 'success');
+					msgEl.innerHTML = html;
+				} else {
+					root.innerHTML = '<div class="cya-callback-msg ' + (isError ? 'error' : 'success') + '">' + html + '</div>';
+				}
+			}
+
+			function markClaimVerified(claimId, email) {
+				var formData = new FormData();
+				formData.append('action', 'cya_mark_email_verified');
+				formData.append('nonce', cyaAjaxNonce);
+				formData.append('email', email);
+				if (claimId) formData.append('claim_id', claimId);
+				return fetch(cyaAjaxUrl, { method: 'POST', credentials: 'same-origin', body: formData }).then(function(r) { return r.json(); });
+			}
+
+			function waitForFirebase(cb, maxWait) {
+				maxWait = maxWait || 8000;
+				var start = Date.now();
+				function check() {
+					if (window.cyaFirebase && window.cyaFirebase.auth && window.cyaFirebase.isSignInWithEmailLink && window.cyaFirebase.signInWithEmailLink) {
+						cb(null);
+						return;
+					}
+					if (Date.now() - start > maxWait) {
+						cb(new Error('Firebase SDK did not load'));
+						return;
+					}
+					setTimeout(check, 200);
+				}
+				check();
+			}
+
 			document.addEventListener('DOMContentLoaded', function() {
-				if (!window.cyaFirebase || !window.cyaFirebase.auth || !window.cyaFirebase.isSignInWithEmailLink || !window.cyaFirebase.signInWithEmailLink) {
-					return;
-				}
+				var root = document.getElementById(rootId);
+				if (!root) return;
 
-				var auth = window.cyaFirebase.auth;
+				waitForFirebase(function(err) {
+					if (err) {
+						root.innerHTML = '<p class="cya-callback-msg error"><?php echo esc_js( __( 'Could not load verification. Please try again.', 'claim-your-agency' ) ); ?></p>';
+						return;
+					}
 
-				if (!window.cyaFirebase.isSignInWithEmailLink(window.location.href)) {
-					return;
-				}
+					if (!window.cyaFirebase.isSignInWithEmailLink(window.location.href)) {
+						root.innerHTML = '<p><?php echo esc_js( __( 'This page is for completing your sign-in. Please use the link from the email we sent you.', 'claim-your-agency' ) ); ?></p>';
+						return;
+					}
 
-				var email = window.localStorage.getItem('cya_email_for_signin');
-				if (!email) {
-					email = window.prompt('Please confirm your email to finish login');
-				}
-				if (!email) {
-					return;
-				}
+					showForm(root);
 
-				window.cyaFirebase.signInWithEmailLink(email, window.location.href)
-					.then(function() {
-						// Mark the claim's email as verified, if claim_id is available in URL.
-						var claimId = getQueryParam('claim_id') || window.localStorage.getItem('cya_claim_id');
-						if (claimId) {
-							var formData = new FormData();
-							formData.append('action', 'cya_mark_email_verified');
-							formData.append('nonce', cyaAjaxNonce);
-							formData.append('claim_id', claimId);
-							formData.append('email', email);
+					document.getElementById(formId).addEventListener('submit', function(e) {
+						e.preventDefault();
+						var emailInput = document.getElementById(emailInputId);
+						var email = (emailInput && emailInput.value) ? emailInput.value.trim() : '';
+						if (!email) return;
 
-							fetch(cyaAjaxUrl, {
-								method: 'POST',
-								credentials: 'same-origin',
-								body: formData
-							}).then(function(resp) {
-								return resp.json();
-							}).then(function(json) {
-								if (json && json.success) {
-									console.log('Claim email marked verified');
-								} else {
-									console.warn('Could not mark claim verified', json);
-								}
-							}).catch(function(err) {
-								console.error('Error marking claim verified', err);
+						var btn = this.querySelector('button[type="submit"]');
+						if (btn) { btn.disabled = true; btn.textContent = '<?php echo esc_js( __( 'Verifying…', 'claim-your-agency' ) ); ?>'; }
+
+						window.cyaFirebase.signInWithEmailLink(email, window.location.href)
+							.then(function() {
+								var claimId = getQueryParam('claim_id');
+								return markClaimVerified(claimId, email).then(function(json) {
+									if (json && json.success) {
+										showMessage(root, '<?php echo esc_js( __( 'Your email has been verified. An admin will review your claim shortly.', 'claim-your-agency' ) ); ?>', false);
+										root.querySelector('form') && root.querySelector('form').remove();
+									} else {
+										showMessage(root, (json && json.data && json.data.message) ? json.data.message : '<?php echo esc_js( __( 'Verification recorded but something went wrong. Please contact support.', 'claim-your-agency' ) ); ?>', true);
+									}
+								});
+							})
+							.catch(function(error) {
+								showMessage(root, (error && error.message) ? error.message : '<?php echo esc_js( __( 'There was a problem verifying your email. Please use the link from your email and try again.', 'claim-your-agency' ) ); ?>', true);
+								if (btn) { btn.disabled = false; btn.textContent = '<?php echo esc_js( __( 'Verify email', 'claim-your-agency' ) ); ?>'; }
 							});
-						}
-
-						// TODO: in later steps, map this Firebase user to a WP user and redirect to /agency-admin.
-						var root = document.getElementById('cya-agency-login-callback-root');
-						if (root) {
-							root.innerHTML = '<p><?php echo esc_js( __( 'Your email has been verified. An admin will review your claim shortly.', 'claim-your-agency' ) ); ?></p>';
-						}
-					})
-					.catch(function(error) {
-						console.error('Error completing Email Link sign-in', error);
-						var root = document.getElementById('cya-agency-login-callback-root');
-						if (root) {
-							root.innerHTML = '<p style="color:#b32d2e;"><?php echo esc_js( __( 'There was a problem verifying your email. Please try again or contact support.', 'claim-your-agency' ) ); ?></p>';
-						}
 					});
+				});
 			});
 		})();
 	</script>
@@ -619,7 +715,8 @@ function cya_output_claim_popup_js() {
 	$recaptcha_enabled = (int) get_option( 'cya_recaptcha_enabled', 0 );
 	$recaptcha_sitekey = get_option( 'cya_recaptcha_site_key', '' );
 	$callback_url      = get_option( 'cya_firebase_callback_url', '' );
-	$firebase_sdk_url  = plugins_url( 'firebase-sdk.js', __FILE__ );
+	// Append a version query to bust browser cache when the SDK changes.
+	$firebase_sdk_url  = plugins_url( 'firebase-sdk.js', __FILE__ ) . '?ver=2';
 	?>
 	<script type="module" src="<?php echo esc_url( $firebase_sdk_url ); ?>"></script>
 	<style>
@@ -908,22 +1005,31 @@ function cya_output_claim_popup_js() {
 
 							if (window.cyaFirebase && cyaCallbackUrl && emailForLink) {
 								try {
-									window.cyaFirebase.sendSignInLinkToEmail(emailForLink, {
-										url: cyaCallbackUrl,
+									// Include claim_id in the callback URL so it works when the link is opened on another device (no localStorage).
+									var callbackUrlWithClaim = cyaCallbackUrl;
+									if (json.data && json.data.claim_id) {
+										var sep = cyaCallbackUrl.indexOf('?') !== -1 ? '&' : '?';
+										callbackUrlWithClaim = cyaCallbackUrl + sep + 'claim_id=' + encodeURIComponent(String(json.data.claim_id));
+									}
+									console.log('[CYA] Preparing to send Firebase Email Link', {
+										email: emailForLink,
+										callbackUrl: callbackUrlWithClaim,
+										hasFirebase: !!window.cyaFirebase,
+										sendFnType: typeof window.cyaFirebase.sendSignInLinkToEmail,
+									});
+
+									var actionCodeSettings = {
+										url: callbackUrlWithClaim,
 										handleCodeInApp: true
-									}).then(function() {
-										// Store email and claim id locally to help complete sign-in on this device.
-										try {
-											window.localStorage.setItem('cya_email_for_signin', emailForLink);
-											if (json.data && json.data.claim_id) {
-												window.localStorage.setItem('cya_claim_id', String(json.data.claim_id));
-											}
-										} catch (e) {}
+									};
+
+									window.cyaFirebase.sendSignInLinkToEmail(emailForLink, actionCodeSettings).then(function() {
+										console.log('[CYA] Firebase Email Link sendSignInLinkToEmail() resolved');
 									}).catch(function(err) {
-										console.error('Failed to send Firebase sign-in link', err);
+										console.error('[CYA] Failed to send Firebase sign-in link', err);
 									});
 								} catch (e) {
-									console.error('Firebase not available for Email Link', e);
+									console.error('[CYA] Firebase not available for Email Link', e);
 								}
 							}
 
@@ -1035,6 +1141,7 @@ add_action( 'wp_ajax_nopriv_cya_get_agency_details', 'cya_get_agency_details' );
  */
 function cya_submit_claim() {
 	if ( empty( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'cya_claim_nonce' ) ) {
+		cya_log( 'Submit claim failed: invalid nonce.' );
 		wp_send_json_error( array( 'message' => __( 'Invalid nonce.', 'claim-your-agency' ) ) );
 	}
 
@@ -1042,6 +1149,7 @@ function cya_submit_claim() {
 	$listing_id     = isset( $_POST['listing_id'] ) ? (int) $_POST['listing_id'] : 0;
 
 	if ( ! $agency_post_id ) {
+		cya_log( 'Submit claim failed: missing agency ID.' );
 		wp_send_json_error( array( 'message' => __( 'Missing agency ID.', 'claim-your-agency' ) ) );
 	}
 
@@ -1055,11 +1163,27 @@ function cya_submit_claim() {
 	$proof_notes    = isset( $_POST['proof_notes'] ) ? sanitize_textarea_field( wp_unslash( $_POST['proof_notes'] ) ) : '';
 
 	if ( $claimant_name === '' || $claimant_email === '' ) {
+		cya_log(
+			'Submit claim failed: missing required fields.',
+			array(
+				'agency_post_id' => $agency_post_id,
+				'listing_id'     => $listing_id,
+				'claimant_email' => $claimant_email,
+			)
+		);
 		wp_send_json_error( array( 'message' => __( 'Name and work email are required.', 'claim-your-agency' ) ) );
 	}
 
 	// Optional: validate consent checkbox.
 	if ( empty( $_POST['claim_consent'] ) ) {
+		cya_log(
+			'Submit claim failed: consent not confirmed.',
+			array(
+				'agency_post_id' => $agency_post_id,
+				'listing_id'     => $listing_id,
+				'claimant_email' => $claimant_email,
+			)
+		);
 		wp_send_json_error( array( 'message' => __( 'You must confirm you are authorised to act on behalf of this agency.', 'claim-your-agency' ) ) );
 	}
 
@@ -1070,6 +1194,14 @@ function cya_submit_claim() {
 	if ( $recaptcha_enabled && $recaptcha_secret ) {
 		$recaptcha_response = isset( $_POST['g-recaptcha-response'] ) ? sanitize_text_field( wp_unslash( $_POST['g-recaptcha-response'] ) ) : '';
 		if ( ! $recaptcha_response ) {
+			cya_log(
+				'Submit claim failed: missing reCAPTCHA response.',
+				array(
+					'agency_post_id' => $agency_post_id,
+					'listing_id'     => $listing_id,
+					'claimant_email' => $claimant_email,
+				)
+			);
 			wp_send_json_error( array( 'message' => __( 'reCAPTCHA verification failed. Please try again.', 'claim-your-agency' ) ) );
 		}
 
@@ -1085,11 +1217,29 @@ function cya_submit_claim() {
 		);
 
 		if ( is_wp_error( $verify ) ) {
+			cya_log(
+				'Submit claim failed: could not verify reCAPTCHA.',
+				array(
+					'agency_post_id' => $agency_post_id,
+					'listing_id'     => $listing_id,
+					'claimant_email' => $claimant_email,
+					'error'          => $verify->get_error_message(),
+				)
+			);
 			wp_send_json_error( array( 'message' => __( 'Could not verify reCAPTCHA. Please try again.', 'claim-your-agency' ) ) );
 		}
 
 		$verify_body = json_decode( wp_remote_retrieve_body( $verify ), true );
 		if ( empty( $verify_body['success'] ) ) {
+			cya_log(
+				'Submit claim failed: reCAPTCHA response invalid.',
+				array(
+					'agency_post_id' => $agency_post_id,
+					'listing_id'     => $listing_id,
+					'claimant_email' => $claimant_email,
+					'verify_body'    => $verify_body,
+				)
+			);
 			wp_send_json_error( array( 'message' => __( 'reCAPTCHA failed. Please try again.', 'claim-your-agency' ) ) );
 		}
 	}
@@ -1106,6 +1256,15 @@ function cya_submit_claim() {
 
 	$claim_id = wp_insert_post( $postarr, true );
 	if ( is_wp_error( $claim_id ) ) {
+		cya_log(
+			'Submit claim failed: could not create claim post.',
+			array(
+				'agency_post_id' => $agency_post_id,
+				'listing_id'     => $listing_id,
+				'claimant_email' => $claimant_email,
+				'error'          => $claim_id->get_error_message(),
+			)
+		);
 		wp_send_json_error( array( 'message' => __( 'Failed to create claim. Please try again later.', 'claim-your-agency' ) ) );
 	}
 
@@ -1132,6 +1291,16 @@ function cya_submit_claim() {
 		update_post_meta( $claim_id, 'proof_notes', $proof_notes );
 	}
 
+	cya_log(
+		'Claim submitted successfully.',
+		array(
+			'claim_id'       => $claim_id,
+			'agency_post_id' => $agency_post_id,
+			'listing_id'     => $listing_id,
+			'claimant_email' => $claimant_email,
+		)
+	);
+
 	wp_send_json_success(
 		array(
 			'message'        => __( 'Your claim has been submitted. Please check your email after we start verification.', 'claim-your-agency' ),
@@ -1150,28 +1319,93 @@ add_action( 'wp_ajax_nopriv_cya_submit_claim', 'cya_submit_claim' );
  */
 function cya_mark_email_verified() {
 	if ( empty( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'cya_claim_nonce' ) ) {
+		cya_log( 'Mark email verified failed: invalid nonce.' );
 		wp_send_json_error( array( 'message' => __( 'Invalid nonce.', 'claim-your-agency' ) ) );
 	}
 
 	$claim_id       = isset( $_POST['claim_id'] ) ? (int) $_POST['claim_id'] : 0;
 	$verified_email = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
 
-	if ( ! $claim_id || ! $verified_email ) {
+	if ( ! $verified_email ) {
+		cya_log( 'Mark email verified failed: missing email.', array( 'claim_id' => $claim_id ) );
+		wp_send_json_error( array( 'message' => __( 'Missing claim or email.', 'claim-your-agency' ) ) );
+	}
+
+	// If no claim_id (e.g. user opened magic link on another device), find most recent pending claim for this email.
+	if ( ! $claim_id ) {
+		$found = get_posts(
+			array(
+				'post_type'      => 'cya_claim',
+				'post_status'     => 'any',
+				'posts_per_page'  => 1,
+				'orderby'        => 'date',
+				'order'          => 'DESC',
+				'meta_query'     => array(
+					array(
+						'key'     => 'claimant_email',
+						'value'   => $verified_email,
+						'compare' => '=',
+					),
+					array(
+						'key'     => 'cya_status',
+						'value'   => 'pending',
+						'compare' => '=',
+					),
+				),
+				'fields'         => 'ids',
+			)
+		);
+		$claim_id = ! empty( $found ) ? (int) $found[0] : 0;
+		if ( $claim_id ) {
+			cya_log(
+				'Mark email verified: claim_id resolved by email lookup.',
+				array( 'claim_id' => $claim_id, 'verified_email' => $verified_email )
+			);
+		}
+	}
+
+	if ( ! $claim_id ) {
+		cya_log(
+			'Mark email verified failed: no claim_id and no pending claim found for email.',
+			array( 'verified_email' => $verified_email )
+		);
 		wp_send_json_error( array( 'message' => __( 'Missing claim or email.', 'claim-your-agency' ) ) );
 	}
 
 	$post = get_post( $claim_id );
 	if ( ! $post || $post->post_type !== 'cya_claim' ) {
+		cya_log(
+			'Mark email verified failed: invalid claim.',
+			array(
+				'claim_id' => $claim_id,
+			)
+		);
 		wp_send_json_error( array( 'message' => __( 'Invalid claim.', 'claim-your-agency' ) ) );
 	}
 
 	$claimant_email = get_post_meta( $claim_id, 'claimant_email', true );
 	if ( ! $claimant_email || strtolower( $claimant_email ) !== strtolower( $verified_email ) ) {
+		cya_log(
+			'Mark email verified failed: email mismatch.',
+			array(
+				'claim_id'       => $claim_id,
+				'claimant_email' => $claimant_email,
+				'verified_email' => $verified_email,
+			)
+		);
 		wp_send_json_error( array( 'message' => __( 'Email does not match the claim.', 'claim-your-agency' ) ) );
 	}
 
 	update_post_meta( $claim_id, 'cya_email_verified', 1 );
 	update_post_meta( $claim_id, 'cya_email_verified_at', current_time( 'mysql' ) );
+
+	cya_log(
+		'Claim email marked as verified.',
+		array(
+			'claim_id'       => $claim_id,
+			'verified_email' => $verified_email,
+		)
+	);
 
 	wp_send_json_success( array( 'message' => __( 'Email verified for this claim.', 'claim-your-agency' ) ) );
 }
