@@ -29,7 +29,7 @@
 	$post_id_1 = get_post($listingid);
 	$post_id_1->post_title;
 	$active_single_fields_saved=get_option('listinghub_single_fields_saved' );	
-	if(empty($active_single_fields_saved)){$active_single_fields_saved=listinghub_get_listing_fields_all_single();}	
+	if(empty($active_single_fields_saved))the{$active_single_fields_saved=listinghub_get_listing_fields_all_single();}	
 	$single_page_icon_saved=get_option('listinghub_single_icon_saved' );		
 	$wp_directory= new eplugins_listinghub();
 	
@@ -377,9 +377,20 @@
 										
 										<div class="col-12">	
 											<a class="link-underline mt-1 " href="<?php echo get_post_type_archive_link( $listinghub_directory_url ).'?&listing-author='.esc_attr($user_info->ID); ?>">
-													<?php echo esc_html($total_listings);?> <?php esc_html_e('listings', 'listinghub'); ?>
+													<?php echo esc_html($total_listings);?> <?php esc_html_e('listing', 'listinghub'); ?>
 												</a>
 										</div>
+										<?php
+										$agency_post_id = (int) get_post_meta( $listingid, 'agency_post_id', true );
+										$agency_owner   = $agency_post_id ? (int) get_post_meta( $agency_post_id, 'agency_owner', true ) : 0;
+										if ( $agency_post_id && $agency_owner === 0 ) :
+										?>
+										<div class="col-12 mt-2">
+											<button type="button" class="btn btn-border btn-sm mt-1" onclick="bia_open_claim_agency_popup('<?php echo esc_attr( (string) $agency_post_id ); ?>','<?php echo esc_attr( $listingid ); ?>')">
+												<?php esc_html_e( 'Claim this agency', 'listinghub' ); ?>
+											</button>
+										</div>
+										<?php endif; ?>
 									</div>	
 									
 							</div>

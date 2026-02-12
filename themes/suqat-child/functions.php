@@ -1,13 +1,4 @@
-
-
-
-
-
-
-
- 
-    
-    <?php
+<?php
 add_action( 'wp_enqueue_scripts', 'suqat_enqueue_styles' );
 function suqat_enqueue_styles() {
   $parent_style = 'suqat-style';

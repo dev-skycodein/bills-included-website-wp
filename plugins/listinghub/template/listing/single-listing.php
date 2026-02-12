@@ -387,7 +387,21 @@
 									</div>	
 									
 							</div>
-							
+							<?php
+										$agency_post_id = (int) get_post_meta( $listingid, 'agency_post_id', true );
+										$agency_owner   = $agency_post_id ? (int) get_post_meta( $agency_post_id, 'agency_owner', true ) : 0;
+										if ( $agency_post_id && $agency_owner === 0 ) :
+										?>
+										<div class="col-12 mt-2">
+											<button
+												type="button"
+												class="btn btn-border btn-big mt-1"
+												onclick="bia_open_claim_agency_popup('<?php echo esc_attr( (string) $agency_post_id ); ?>','<?php echo esc_attr( $listingid ); ?>')"
+											>
+												<?php esc_html_e( 'Claim this agency', 'listinghub' ); ?>
+											</button>
+										</div>
+										<?php endif; ?>
 						</div>
 						<?php
 						}
