@@ -169,6 +169,154 @@ function cya_claim_row_actions( $actions, $post ) {
 add_filter( 'post_row_actions', 'cya_claim_row_actions', 10, 2 );
 
 /**
+ * Get the ListingHub package that represents "Agency" (by role name).
+ * Used so we don't rely on a fixed package ID across sites.
+ *
+ * @return array|null { 'package_id' => int, 'role' => string } or null if not found.
+ */
+function cya_get_agency_package_from_listinghub() {
+	$packages = get_posts(
+		array(
+			'post_type'      => 'listinghub_pack',
+			'post_status'    => 'any',
+			'posts_per_page' => 50,
+			'meta_key'       => 'listinghub_package_user_role',
+			'meta_compare'   => 'EXISTS',
+			'fields'         => 'ids',
+		)
+	);
+
+	if ( empty( $packages ) ) {
+		return null;
+	}
+
+	foreach ( $packages as $package_id ) {
+		$role = get_post_meta( $package_id, 'listinghub_package_user_role', true );
+		if ( is_string( $role ) && strtolower( trim( $role ) ) === 'agency' ) {
+			return array(
+				'package_id' => (int) $package_id,
+				'role'       => trim( $role ),
+			);
+		}
+	}
+
+	return null;
+}
+
+/**
+ * On claim approval: create/find user, assign Agency package role, set agency_owner, reassign listings.
+ *
+ * @param int $claim_id cya_claim post ID.
+ * @return WP_Error|null Error on failure, null on success.
+ */
+function cya_on_approve_link_user_and_agency( $claim_id ) {
+	$claimant_email = get_post_meta( $claim_id, 'claimant_email', true );
+	$claimant_name  = get_post_meta( $claim_id, 'claimant_name', true );
+	$agency_post_id = (int) get_post_meta( $claim_id, 'agency_post_id', true );
+
+	if ( ! $claimant_email || ! $agency_post_id ) {
+		cya_log(
+			'Approve: missing claimant email or agency_post_id.',
+			array( 'claim_id' => $claim_id, 'claimant_email' => $claimant_email, 'agency_post_id' => $agency_post_id )
+		);
+		return new WP_Error( 'cya_missing_data', __( 'Claim is missing email or agency.', 'claim-your-agency' ) );
+	}
+
+	$agency = cya_get_agency_package_from_listinghub();
+	if ( ! $agency ) {
+		cya_log(
+			'Approve: no ListingHub package with role "Agency" found.',
+			array( 'claim_id' => $claim_id )
+		);
+		return new WP_Error( 'cya_no_agency_package', __( 'No ListingHub package with role "Agency" found. Create one under ListingHub packages.', 'claim-your-agency' ) );
+	}
+
+	$role_slug   = $agency['role'];
+	$package_id  = $agency['package_id'];
+
+	// Create or get WordPress user by email.
+	$user = get_user_by( 'email', $claimant_email );
+	if ( ! $user ) {
+		$username = sanitize_user( str_replace( array( '@', '.', '+' ), array( '_', '_', '_' ), $claimant_email ), true );
+		if ( username_exists( $username ) ) {
+			$username = $username . '_' . wp_rand( 100, 999 );
+		}
+		$user_id = wp_create_user(
+			$username,
+			wp_generate_password( 24, true ),
+			$claimant_email
+		);
+		if ( is_wp_error( $user_id ) ) {
+			cya_log( 'Approve: failed to create user.', array( 'claim_id' => $claim_id, 'error' => $user_id->get_error_message() ) );
+			return $user_id;
+		}
+		$user = get_user_by( 'ID', $user_id );
+		if ( $claimant_name ) {
+			wp_update_user(
+				array(
+					'ID'         => $user_id,
+					'display_name' => $claimant_name,
+					'first_name'  => $claimant_name,
+					'last_name'   => '',
+				)
+			);
+		}
+		cya_log( 'Approve: created new user.', array( 'claim_id' => $claim_id, 'user_id' => $user_id, 'email' => $claimant_email ) );
+	} else {
+		$user_id = $user->ID;
+	}
+
+	// Assign the Agency role from the package (don't override administrator).
+	if ( ! $user->has_cap( 'manage_options' ) ) {
+		$user->set_role( $role_slug );
+	}
+	update_user_meta( $user_id, 'listinghub_package_id', $package_id );
+
+	// Set agency owner on the agency profile (gsli_agency).
+	update_post_meta( $agency_post_id, 'agency_owner', $user_id );
+
+	// Reassign all listings linked to this agency to the new owner (post_author).
+	$listing_post_type = get_option( 'ep_listinghub_url', 'listing' );
+	$listings = get_posts(
+		array(
+			'post_type'      => $listing_post_type,
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'meta_query'     => array(
+				array(
+					'key'   => 'agency_post_id',
+					'value' => $agency_post_id,
+					'compare' => '=',
+				),
+			),
+		)
+	);
+	foreach ( $listings as $listing_id ) {
+		wp_update_post(
+			array(
+				'ID'          => (int) $listing_id,
+				'post_author' => $user_id,
+			)
+		);
+	}
+
+	cya_log(
+		'Claim approved: user linked to agency.',
+		array(
+			'claim_id'       => $claim_id,
+			'user_id'        => $user_id,
+			'agency_post_id' => $agency_post_id,
+			'role'           => $role_slug,
+			'package_id'     => $package_id,
+			'listings_updated' => count( $listings ),
+		)
+	);
+
+	return null;
+}
+
+/**
  * Handle Approve/Reject actions on the single post screen.
  */
 function cya_handle_claim_status_change() {
@@ -191,6 +339,21 @@ function cya_handle_claim_status_change() {
 
 	if ( $action === 'approve' ) {
 		update_post_meta( $post_id, 'cya_status', 'approved' );
+
+		$err = cya_on_approve_link_user_and_agency( $post_id );
+		if ( is_wp_error( $err ) ) {
+			cya_log( 'Approve: link user/agency failed.', array( 'claim_id' => $post_id, 'error' => $err->get_error_message() ) );
+			set_transient(
+				'cya_approve_error_' . get_current_user_id(),
+				sprintf(
+					/* translators: %s: error message */
+					__( 'Claim marked approved, but linking the claimant to the agency failed: %s', 'claim-your-agency' ),
+					$err->get_error_message()
+				),
+				120
+			);
+		}
+
 		cya_log(
 			'Claim approved by admin.',
 			array(
@@ -218,6 +381,24 @@ function cya_handle_claim_status_change() {
 	exit;
 }
 add_action( 'admin_init', 'cya_handle_claim_status_change' );
+
+/**
+ * Show admin notice if claim was approved but linking user/agency failed.
+ */
+function cya_admin_notice_approve_error() {
+	$key   = 'cya_approve_error_' . get_current_user_id();
+	$message = get_transient( $key );
+	if ( ! $message ) {
+		return;
+	}
+	delete_transient( $key );
+	?>
+	<div class="notice notice-warning is-dismissible">
+		<p><strong><?php esc_html_e( 'Claim Your Agency:', 'claim-your-agency' ); ?></strong> <?php echo esc_html( $message ); ?></p>
+	</div>
+	<?php
+}
+add_action( 'admin_notices', 'cya_admin_notice_approve_error' );
 
 /**
  * Register settings for reCAPTCHA configuration.
@@ -587,6 +768,52 @@ function cya_render_claim_meta_box( $post ) {
 	$proof_notes     = get_post_meta( $claim_id, 'proof_notes', true );
 	$email_verified  = (int) get_post_meta( $claim_id, 'cya_email_verified', true );
 
+	// Simple domain hint: compare claimant email domain with submitted agency website host.
+	$email_domain   = '';
+	$website_host   = '';
+	$domain_message = '';
+	$domain_style   = 'color:#646970;'; // default neutral.
+
+	if ( $claimant_email && false !== strpos( $claimant_email, '@' ) ) {
+		$email_domain = strtolower( substr( strrchr( $claimant_email, '@' ), 1 ) );
+	}
+
+	if ( $agency_website ) {
+		$normalized_url = ( 0 === strpos( $agency_website, 'http' ) ) ? $agency_website : 'https://' . $agency_website;
+		$host           = wp_parse_url( $normalized_url, PHP_URL_HOST );
+		if ( is_string( $host ) ) {
+			$website_host = strtolower( preg_replace( '/^www\./i', '', $host ) );
+		}
+	}
+
+	if ( $email_domain && $website_host ) {
+		$clean_email_domain = preg_replace( '/^www\./i', '', $email_domain );
+		if ( $clean_email_domain === $website_host ) {
+			$domain_message = __( 'Email domain matches the agency website.', 'claim-your-agency' );
+			$domain_style   = 'color:#046a38;font-weight:600;'; // green.
+		} elseif ( false !== strpos( $website_host, $clean_email_domain ) || false !== strpos( $clean_email_domain, $website_host ) ) {
+			$domain_message = sprintf(
+				/* translators: 1: email domain, 2: website host */
+				__( 'Email domain (%1$s) is similar to agency host (%2$s) – check manually.', 'claim-your-agency' ),
+				$clean_email_domain,
+				$website_host
+			);
+			$domain_style = 'color:#d9831f;font-weight:600;'; // amber.
+		} else {
+			$domain_message = sprintf(
+				/* translators: 1: email domain, 2: website host */
+				__( 'Email domain (%1$s) does not match agency host (%2$s). Review proof links carefully.', 'claim-your-agency' ),
+				$clean_email_domain,
+				$website_host
+			);
+			$domain_style = 'color:#b32d2e;font-weight:600;'; // red.
+		}
+	} elseif ( $email_domain || $website_host ) {
+		$domain_message = __( 'Not enough information to compare domains (missing email or website).', 'claim-your-agency' );
+	} else {
+		$domain_message = __( 'No email or website provided to compare domains.', 'claim-your-agency' );
+	}
+
 	$agency_post   = $agency_post_id ? get_post( $agency_post_id ) : null;
 	$listing_post  = $listing_id ? get_post( $listing_id ) : null;
 	$agency_title  = $agency_post ? $agency_post->post_title : '';
@@ -670,6 +897,27 @@ function cya_render_claim_meta_box( $post ) {
 						</a>
 					<?php else : ?>
 						<em><?php esc_html_e( 'Not provided', 'claim-your-agency' ); ?></em>
+					<?php endif; ?>
+				</td>
+			</tr>
+
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Domain match hint', 'claim-your-agency' ); ?></th>
+				<td>
+					<p style="<?php echo esc_attr( $domain_style ); ?>">
+						<?php echo esc_html( $domain_message ); ?>
+					</p>
+					<?php if ( $email_domain || $website_host ) : ?>
+						<p style="margin-top:4px;font-size:12px;color:#646970;">
+							<?php
+							printf(
+								/* translators: 1: email domain, 2: website host */
+								esc_html__( 'Email domain: %1$s, Website host: %2$s', 'claim-your-agency' ),
+								$email_domain ? esc_html( $email_domain ) : esc_html__( 'n/a', 'claim-your-agency' ),
+								$website_host ? esc_html( $website_host ) : esc_html__( 'n/a', 'claim-your-agency' )
+							);
+							?>
+						</p>
 					<?php endif; ?>
 				</td>
 			</tr>
