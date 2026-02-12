@@ -8,6 +8,9 @@ plugins/*
 !plugins/listinghub/**
 !plugins/gsheet-listing-importer/
 !plugins/gsheet-listing-importer/**
+!plugins/claim-your-agency/
+!plugins/claim-your-agency/**
+plugins/claim-your-agency/firebase-sdk.js
 uploads/
 updraft/
 upgrade/
