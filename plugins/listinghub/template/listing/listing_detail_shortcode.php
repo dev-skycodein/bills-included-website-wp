@@ -29,7 +29,7 @@
 	$post_id_1 = get_post($listingid);
 	$post_id_1->post_title;
 	$active_single_fields_saved=get_option('listinghub_single_fields_saved' );	
-	if(empty($active_single_fields_saved))the{$active_single_fields_saved=listinghub_get_listing_fields_all_single();}	
+	if(empty($active_single_fields_saved)){$active_single_fields_saved=listinghub_get_listing_fields_all_single();}	
 	$single_page_icon_saved=get_option('listinghub_single_icon_saved' );		
 	$wp_directory= new eplugins_listinghub();
 	
@@ -386,7 +386,7 @@
 										if ( $agency_post_id && $agency_owner === 0 ) :
 										?>
 										<div class="col-12 mt-2">
-											<button type="button" class="btn btn-border btn-sm mt-1" onclick="bia_open_claim_agency_popup('<?php echo esc_attr( (string) $agency_post_id ); ?>','<?php echo esc_attr( $listingid ); ?>')">
+											<button type="button" class="btn btn-border btn-sm mt-1 cya-claim-agency-button" onclick="bia_open_claim_agency_popup(this,'<?php echo esc_attr( (string) $agency_post_id ); ?>','<?php echo esc_attr( $listingid ); ?>')">
 												<?php esc_html_e( 'Claim this agency', 'listinghub' ); ?>
 											</button>
 										</div>
