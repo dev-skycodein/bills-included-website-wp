@@ -375,21 +375,27 @@
 												<span class="card-location mt-2"><i class="fa-solid fa-location-dot mr-2"></i><?php echo esc_html($company_locations); ?></span>
 												<?php
 												}
-												$total_listings= $main_class->listinghub_total_listing_count($user_info->ID, $allusers='no' );
+												$total_listings = $main_class->listinghub_total_listing_count( $user_info->ID, $allusers = 'no' );
+												$agency_post_id = (int) get_post_meta( $listingid, 'agency_post_id', true );
+												$agency_owner   = $agency_post_id ? (int) get_post_meta( $agency_post_id, 'agency_owner', true ) : 0;
 												?>
 										</div>
 										
 										<div class="col-12">	
-											<a class="link-underline mt-1 " href="<?php echo get_post_type_archive_link( $listinghub_directory_url ).'?&listing-author='.esc_attr($user_info->ID); ?>">
-													<?php echo esc_html($total_listings);?> <?php esc_html_e('listings', 'listinghub'); ?>
+											<?php if ( $agency_post_id && $agency_owner === 0 ) : ?>
+												<a class="link-underline mt-1 " href="<?php echo esc_url( get_permalink( $agency_post_id ) ); ?>">
+													<?php echo esc_html( $total_listings ); ?> <?php esc_html_e( 'listings', 'listinghub' ); ?>
 												</a>
+											<?php else : ?>
+												<a class="link-underline mt-1 " href="<?php echo esc_url( get_post_type_archive_link( $listinghub_directory_url ) . '?&listing-author=' . esc_attr( $user_info->ID ) ); ?>">
+													<?php echo esc_html( $total_listings ); ?> <?php esc_html_e( 'listings', 'listinghub' ); ?>
+												</a>
+											<?php endif; ?>
 										</div>
 									</div>	
 									
 							</div>
 							<?php
-										$agency_post_id = (int) get_post_meta( $listingid, 'agency_post_id', true );
-										$agency_owner   = $agency_post_id ? (int) get_post_meta( $agency_post_id, 'agency_owner', true ) : 0;
 										if ( $agency_post_id && $agency_owner === 0 ) :
 										?>
 										<div class="col-12 mt-2">

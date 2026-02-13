@@ -204,6 +204,65 @@ function cya_get_agency_package_from_listinghub() {
 }
 
 /**
+ * Send an approval email to the claimant when their agency claim is approved.
+ *
+ * @param string $to_email       Recipient email.
+ * @param string $claimant_name  Claimant name (optional).
+ * @param int    $agency_post_id Agency post ID.
+ * @return bool True if sent, false otherwise.
+ */
+function cya_send_approval_email( $to_email, $claimant_name, $agency_post_id ) {
+	$enabled = (int) get_option( 'cya_approval_email_enabled', 0 );
+	if ( ! $enabled || ! $to_email ) {
+		return false;
+	}
+
+	$subject = get_option( 'cya_approval_email_subject', __( 'Your agency claim has been approved', 'claim-your-agency' ) );
+	$body    = get_option(
+		'cya_approval_email_body',
+		"Hello {CLAIMANT_NAME},\n\nYour agency claim for {AGENCY_NAME} on {SITE_NAME} has been approved.\n\nYou can access your agency dashboard here: {DASHBOARD_URL}\n\nThanks,\n{SITE_NAME} team"
+	);
+
+	$from_name  = get_option( 'cya_approval_email_from_name', '' );
+	$from_email = get_option( 'cya_approval_email_from_email', '' );
+
+	$site_name   = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
+	$agency_name = $agency_post_id ? get_the_title( $agency_post_id ) : '';
+	$dashboard   = get_option( 'cya_agency_dashboard_url', home_url( '/' ) );
+
+	$replacements = array(
+		'{CLAIMANT_NAME}'  => $claimant_name ? $claimant_name : $to_email,
+		'{CLAIMANT_EMAIL}' => $to_email,
+		'{AGENCY_NAME}'    => $agency_name,
+		'{DASHBOARD_URL}'  => $dashboard,
+		'{SITE_NAME}'      => $site_name,
+	);
+
+	$subject = strtr( $subject, $replacements );
+	$body    = strtr( $body, $replacements );
+
+	$headers   = array( 'Content-Type: text/html; charset=UTF-8' );
+	if ( $from_email ) {
+		$from_name_header = $from_name ? $from_name : $site_name;
+		$headers[]        = 'From: ' . $from_name_header . ' <' . $from_email . '>';
+		$headers[]        = 'Reply-To: ' . $from_email;
+	}
+
+	$sent = wp_mail( $to_email, $subject, nl2br( $body ), $headers );
+
+	cya_log(
+		$sent ? 'Approval email sent.' : 'Approval email failed to send.',
+		array(
+			'to'             => $to_email,
+			'agency_post_id' => $agency_post_id,
+			'subject'        => $subject,
+		)
+	);
+
+	return (bool) $sent;
+}
+
+/**
  * On claim approval: create/find user, assign Agency package role, set agency_owner, reassign listings.
  *
  * @param int $claim_id cya_claim post ID.
@@ -300,6 +359,9 @@ function cya_on_approve_link_user_and_agency( $claim_id ) {
 			)
 		);
 	}
+
+	// Send optional approval email to claimant.
+	cya_send_approval_email( $claimant_email, $claimant_name, $agency_post_id );
 
 	cya_log(
 		'Claim approved: user linked to agency.',
@@ -401,6 +463,59 @@ function cya_admin_notice_approve_error() {
 add_action( 'admin_notices', 'cya_admin_notice_approve_error' );
 
 /**
+ * Handle sending a test approval email from the settings page.
+ */
+function cya_send_test_approval_email() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'You do not have permission to do this.', 'claim-your-agency' ) );
+	}
+
+	if ( empty( $_POST['cya_test_approval_email_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['cya_test_approval_email_nonce'] ) ), 'cya_test_approval_email' ) ) {
+		wp_die( esc_html__( 'Invalid request.', 'claim-your-agency' ) );
+	}
+
+	$email = isset( $_POST['cya_test_email'] ) ? sanitize_email( wp_unslash( $_POST['cya_test_email'] ) ) : '';
+	$user_id = get_current_user_id();
+	$key     = 'cya_test_email_notice_' . $user_id;
+
+	if ( ! $email ) {
+		set_transient( $key, esc_html__( 'Test email not sent: invalid email address.', 'claim-your-agency' ), 60 );
+	} else {
+		$sent = cya_send_approval_email( $email, __( 'Test User', 'claim-your-agency' ), 0 );
+		if ( $sent ) {
+			set_transient( $key, sprintf( esc_html__( 'Test approval email sent to %s.', 'claim-your-agency' ), $email ), 60 );
+		} else {
+			set_transient( $key, sprintf( esc_html__( 'Test approval email could not be sent to %s. Check your mail server configuration.', 'claim-your-agency' ), $email ), 60 );
+		}
+	}
+
+	wp_safe_redirect( admin_url( 'edit.php?post_type=cya_claim&page=claim-your-agency-settings' ) );
+	exit;
+}
+add_action( 'admin_post_cya_send_test_approval_email', 'cya_send_test_approval_email' );
+
+/**
+ * Show admin notice after test approval email action.
+ */
+function cya_admin_notice_test_email() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+	$key     = 'cya_test_email_notice_' . get_current_user_id();
+	$message = get_transient( $key );
+	if ( ! $message ) {
+		return;
+	}
+	delete_transient( $key );
+	?>
+	<div class="notice notice-info is-dismissible">
+		<p><strong><?php esc_html_e( 'Claim Your Agency:', 'claim-your-agency' ); ?></strong> <?php echo esc_html( $message ); ?></p>
+	</div>
+	<?php
+}
+add_action( 'admin_notices', 'cya_admin_notice_test_email' );
+
+/**
  * Register settings for reCAPTCHA configuration.
  */
 function cya_register_settings() {
@@ -469,6 +584,60 @@ function cya_register_settings() {
 			'default'           => '',
 		)
 	);
+
+	// Claim approval email settings.
+	register_setting(
+		'cya_recaptcha_settings',
+		'cya_approval_email_enabled',
+		array(
+			'type'              => 'boolean',
+			'sanitize_callback' => function ( $value ) {
+				return $value ? 1 : 0;
+			},
+			'default'           => 0,
+		)
+	);
+
+	register_setting(
+		'cya_recaptcha_settings',
+		'cya_approval_email_subject',
+		array(
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+			'default'           => __( 'Your agency claim has been approved', 'claim-your-agency' ),
+		)
+	);
+
+	register_setting(
+		'cya_recaptcha_settings',
+		'cya_approval_email_body',
+		array(
+			'type'              => 'string',
+			// Allow template placeholders; escape on output.
+			'sanitize_callback' => null,
+			'default'           => "Hello {CLAIMANT_NAME},\n\nYour agency claim for {AGENCY_NAME} on {SITE_NAME} has been approved.\n\nYou can access your agency dashboard here: {DASHBOARD_URL}\n\nThanks,\n{SITE_NAME} team",
+		)
+	);
+
+	register_setting(
+		'cya_recaptcha_settings',
+		'cya_approval_email_from_name',
+		array(
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+			'default'           => '',
+		)
+	);
+
+	register_setting(
+		'cya_recaptcha_settings',
+		'cya_approval_email_from_email',
+		array(
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_email',
+			'default'           => '',
+		)
+	);
 }
 add_action( 'admin_init', 'cya_register_settings' );
 
@@ -496,12 +665,18 @@ function cya_render_settings_page() {
 		return;
 	}
 
-	$site_key    = get_option( 'cya_recaptcha_site_key', '' );
-	$secret_key  = get_option( 'cya_recaptcha_secret_key', '' );
-	$enabled     = (int) get_option( 'cya_recaptcha_enabled', 0 );
-	$fb_snippet  = get_option( 'cya_firebase_config_snippet', '' );
-	$callback_url   = get_option( 'cya_firebase_callback_url', '' );
-	$dashboard_url  = get_option( 'cya_agency_dashboard_url', '' );
+	$site_key          = get_option( 'cya_recaptcha_site_key', '' );
+	$secret_key        = get_option( 'cya_recaptcha_secret_key', '' );
+	$enabled           = (int) get_option( 'cya_recaptcha_enabled', 0 );
+	$fb_snippet        = get_option( 'cya_firebase_config_snippet', '' );
+	$callback_url      = get_option( 'cya_firebase_callback_url', '' );
+	$dashboard_url     = get_option( 'cya_agency_dashboard_url', '' );
+	$approval_enabled  = (int) get_option( 'cya_approval_email_enabled', 0 );
+	$approval_subject  = get_option( 'cya_approval_email_subject', __( 'Your agency claim has been approved', 'claim-your-agency' ) );
+	$approval_body     = get_option( 'cya_approval_email_body', "Hello {CLAIMANT_NAME},\n\nYour agency claim for {AGENCY_NAME} on {SITE_NAME} has been approved.\n\nYou can access your agency dashboard here: {DASHBOARD_URL}\n\nThanks,\n{SITE_NAME} team" );
+	$approval_from_name  = get_option( 'cya_approval_email_from_name', '' );
+	$approval_from_email = get_option( 'cya_approval_email_from_email', '' );
+	$test_email_nonce    = wp_create_nonce( 'cya_test_approval_email' );
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'Claim Your Agency – Settings', 'claim-your-agency' ); ?></h1>
@@ -606,9 +781,81 @@ function cya_render_settings_page() {
 						</p>
 					</td>
 				</tr>
+
+				<tr>
+					<th colspan="2">
+						<h2><?php esc_html_e( 'Claim approval email to claimant', 'claim-your-agency' ); ?></h2>
+						<p class="description">
+							<?php esc_html_e( 'Optional: send a confirmation email to the claimant when you approve their agency claim. This email complements the Firebase magic-link flow and uses your site mail server.', 'claim-your-agency' ); ?>
+						</p>
+					</th>
+				</tr>
+				<tr>
+					<th scope="row">
+						<?php esc_html_e( 'Enable approval email', 'claim-your-agency' ); ?>
+					</th>
+					<td>
+						<label for="cya_approval_email_enabled">
+							<input type="checkbox" id="cya_approval_email_enabled" name="cya_approval_email_enabled" value="1" <?php checked( $approval_enabled, 1 ); ?> />
+							<?php esc_html_e( 'Send an email to the claimant when their agency claim is approved.', 'claim-your-agency' ); ?>
+						</label>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="cya_approval_email_from_name"><?php esc_html_e( 'From name (optional)', 'claim-your-agency' ); ?></label>
+					</th>
+					<td>
+						<input type="text" class="regular-text" id="cya_approval_email_from_name" name="cya_approval_email_from_name" value="<?php echo esc_attr( $approval_from_name ); ?>" />
+						<p class="description">
+							<?php esc_html_e( 'E.g. “Bills Included”. If left empty, the site name will be used.', 'claim-your-agency' ); ?>
+						</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="cya_approval_email_from_email"><?php esc_html_e( 'From email (optional)', 'claim-your-agency' ); ?></label>
+					</th>
+					<td>
+						<input type="email" class="regular-text" id="cya_approval_email_from_email" name="cya_approval_email_from_email" value="<?php echo esc_attr( $approval_from_email ); ?>" />
+						<p class="description">
+							<?php esc_html_e( 'Use an address on your own domain (e.g. no-reply@yourdomain.com) and configure SPF/DKIM for best deliverability.', 'claim-your-agency' ); ?>
+						</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="cya_approval_email_subject"><?php esc_html_e( 'Email subject', 'claim-your-agency' ); ?></label>
+					</th>
+					<td>
+						<input type="text" class="regular-text" id="cya_approval_email_subject" name="cya_approval_email_subject" value="<?php echo esc_attr( $approval_subject ); ?>" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="cya_approval_email_body"><?php esc_html_e( 'Email body', 'claim-your-agency' ); ?></label>
+					</th>
+					<td>
+						<textarea class="large-text code" rows="8" id="cya_approval_email_body" name="cya_approval_email_body"><?php echo esc_textarea( $approval_body ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'Available placeholders: {CLAIMANT_NAME}, {CLAIMANT_EMAIL}, {AGENCY_NAME}, {DASHBOARD_URL}, {SITE_NAME}.', 'claim-your-agency' ); ?>
+						</p>
+					</td>
+				</tr>
 			</table>
 
 			<?php submit_button(); ?>
+		</form>
+
+		<h2><?php esc_html_e( 'Send test approval email', 'claim-your-agency' ); ?></h2>
+		<p class="description">
+			<?php esc_html_e( 'Use this to send yourself a test approval email using the template above. This is only for testing and can be removed later.', 'claim-your-agency' ); ?>
+		</p>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="cya_send_test_approval_email" />
+			<input type="hidden" name="cya_test_approval_email_nonce" value="<?php echo esc_attr( $test_email_nonce ); ?>" />
+			<input type="email" class="regular-text" name="cya_test_email" placeholder="<?php esc_attr_e( 'you@example.com', 'claim-your-agency' ); ?>" required />
+			<?php submit_button( __( 'Send test email', 'claim-your-agency' ), 'secondary', 'submit', false ); ?>
 		</form>
 	</div>
 	<?php
