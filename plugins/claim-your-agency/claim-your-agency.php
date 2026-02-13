@@ -458,6 +458,17 @@ function cya_register_settings() {
 			'default'           => '',
 		)
 	);
+
+	// Agency dashboard URL (where approved owners land after Firebase login).
+	register_setting(
+		'cya_recaptcha_settings',
+		'cya_agency_dashboard_url',
+		array(
+			'type'              => 'string',
+			'sanitize_callback' => 'esc_url_raw',
+			'default'           => '',
+		)
+	);
 }
 add_action( 'admin_init', 'cya_register_settings' );
 
@@ -489,7 +500,8 @@ function cya_render_settings_page() {
 	$secret_key  = get_option( 'cya_recaptcha_secret_key', '' );
 	$enabled     = (int) get_option( 'cya_recaptcha_enabled', 0 );
 	$fb_snippet  = get_option( 'cya_firebase_config_snippet', '' );
-	$callback_url= get_option( 'cya_firebase_callback_url', '' );
+	$callback_url   = get_option( 'cya_firebase_callback_url', '' );
+	$dashboard_url  = get_option( 'cya_agency_dashboard_url', '' );
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'Claim Your Agency – Settings', 'claim-your-agency' ); ?></h1>
@@ -540,6 +552,17 @@ function cya_render_settings_page() {
 						<input type="url" class="regular-text" id="cya_firebase_callback_url" name="cya_firebase_callback_url" value="<?php echo esc_attr( $callback_url ); ?>" />
 						<p class="description">
 							<?php esc_html_e( 'Full URL of the page in WordPress that will handle the Firebase Email Link callback (this same URL should be set as the Action URL in the Firebase console).', 'claim-your-agency' ); ?>
+						</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="cya_agency_dashboard_url"><?php esc_html_e( 'Agency dashboard URL', 'claim-your-agency' ); ?></label>
+					</th>
+					<td>
+						<input type="url" class="regular-text" id="cya_agency_dashboard_url" name="cya_agency_dashboard_url" value="<?php echo esc_attr( $dashboard_url ); ?>" />
+						<p class="description">
+							<?php esc_html_e( 'Where approved agency owners are redirected after signing in with the Firebase Email Link. Use a page that contains the shortcode [agency_dashboard].', 'claim-your-agency' ); ?>
 						</p>
 					</td>
 				</tr>
@@ -707,13 +730,27 @@ function cya_render_agency_login_callback() {
 						window.cyaFirebase.signInWithEmailLink(email, window.location.href)
 							.then(function() {
 								var claimId = getQueryParam('claim_id');
-								return markClaimVerified(claimId, email).then(function(json) {
-									if (json && json.success) {
-										showMessage(root, '<?php echo esc_js( __( 'Your email has been verified. An admin will review your claim shortly.', 'claim-your-agency' ) ); ?>', false);
-										root.querySelector('form') && root.querySelector('form').remove();
-									} else {
-										showMessage(root, (json && json.data && json.data.message) ? json.data.message : '<?php echo esc_js( __( 'Verification recorded but something went wrong. Please contact support.', 'claim-your-agency' ) ); ?>', true);
+								if (claimId) {
+									return markClaimVerified(claimId, email).then(function(json) {
+										if (json && json.success) {
+											showMessage(root, '<?php echo esc_js( __( 'Your email has been verified. An admin will review your claim shortly.', 'claim-your-agency' ) ); ?>', false);
+											root.querySelector('form') && root.querySelector('form').remove();
+										} else {
+											showMessage(root, (json && json.data && json.data.message) ? json.data.message : '<?php echo esc_js( __( 'Verification recorded but something went wrong. Please contact support.', 'claim-your-agency' ) ); ?>', true);
+										}
+									});
+								}
+								var formData = new FormData();
+								formData.append('action', 'cya_agency_wp_login');
+								formData.append('nonce', cyaAjaxNonce);
+								formData.append('email', email);
+								return fetch(cyaAjaxUrl, { method: 'POST', credentials: 'same-origin', body: formData }).then(function(r) { return r.json(); }).then(function(json) {
+									if (json && json.success && json.data && json.data.redirect) {
+										showMessage(root, '<?php echo esc_js( __( 'Signing you in…', 'claim-your-agency' ) ); ?>', false);
+										window.location.href = json.data.redirect;
+										return;
 									}
+									showMessage(root, (json && json.data && json.data.message) ? json.data.message : '<?php echo esc_js( __( 'Could not sign you in. Your claim may still be pending approval.', 'claim-your-agency' ) ); ?>', true);
 								});
 							})
 							.catch(function(error) {
@@ -729,8 +766,306 @@ function cya_render_agency_login_callback() {
 	return ob_get_clean();
 }
 
+/**
+ * Shortcode: Agency login request – form to request a Firebase Email Link to sign in (for approved owners).
+ */
+function cya_render_agency_login_request() {
+	$callback_url = get_option( 'cya_firebase_callback_url', '' );
+	if ( ! $callback_url ) {
+		return '<p>' . esc_html__( 'Agency login is not configured. Please set the Firebase callback URL in Claim Your Agency settings.', 'claim-your-agency' ) . '</p>';
+	}
+
+	if ( is_user_logged_in() && cya_user_is_agency_owner( get_current_user_id() ) ) {
+		$dashboard_url = get_option( 'cya_agency_dashboard_url', home_url( '/' ) );
+		return '<p>' . sprintf(
+			/* translators: %s: dashboard URL */
+			__( 'You are already signed in. <a href="%s">Go to your agency dashboard</a>.', 'claim-your-agency' ),
+			esc_url( $dashboard_url )
+		) . '</p>';
+	}
+
+	$ajax_url   = admin_url( 'admin-ajax.php' );
+	$nonce      = wp_create_nonce( 'cya_claim_nonce' );
+	$firebase_url = plugins_url( 'firebase-sdk.js', __FILE__ ) . '?ver=2';
+	$form_id   = 'cya-login-request-form';
+	$msg_id    = 'cya-login-request-msg';
+	ob_start();
+	?>
+	<div class="cya-login-request-wrap">
+		<p><?php esc_html_e( 'Enter the work email for your approved agency account. We’ll send you a sign-in link (no password needed).', 'claim-your-agency' ); ?></p>
+		<form id="<?php echo esc_attr( $form_id ); ?>" class="cya-callback-form">
+			<label for="cya-login-request-email"><?php esc_html_e( 'Email address', 'claim-your-agency' ); ?></label>
+			<input type="email" id="cya-login-request-email" name="email" required placeholder="<?php echo esc_attr__( 'you@example.com', 'claim-your-agency' ); ?>">
+			<button type="submit"><?php esc_html_e( 'Send sign-in link', 'claim-your-agency' ); ?></button>
+		</form>
+		<div id="<?php echo esc_attr( $msg_id ); ?>" class="cya-callback-msg" style="display:none;"></div>
+	</div>
+	<style>
+		.cya-login-request-wrap .cya-callback-form { max-width: 360px; margin: 1em 0; }
+		.cya-login-request-wrap .cya-callback-form label { display: block; margin-bottom: 0.25em; font-weight: 600; }
+		.cya-login-request-wrap .cya-callback-form input[type="email"] { width: 100%; padding: 8px 12px; margin-bottom: 12px; box-sizing: border-box; }
+		.cya-login-request-wrap .cya-callback-form button { padding: 10px 20px; cursor: pointer; }
+		.cya-login-request-wrap .cya-callback-msg { margin-top: 1em; padding: 10px; border-radius: 4px; max-width: 360px; }
+		.cya-login-request-wrap .cya-callback-msg.success { background: #d4edda; color: #155724; }
+		.cya-login-request-wrap .cya-callback-msg.error { background: #f8d7da; color: #721c24; }
+	</style>
+	<script type="module">
+		(function() {
+			var form = document.getElementById('<?php echo esc_js( $form_id ); ?>');
+			var msgEl = document.getElementById('<?php echo esc_js( $msg_id ); ?>');
+			var callbackUrl = <?php echo wp_json_encode( $callback_url ); ?>;
+
+			function showMsg(html, isError) {
+				msgEl.style.display = 'block';
+				msgEl.className = 'cya-callback-msg ' + (isError ? 'error' : 'success');
+				msgEl.innerHTML = html;
+			}
+
+			if (!form) return;
+
+			form.addEventListener('submit', function(e) {
+				e.preventDefault();
+				var emailInput = document.getElementById('cya-login-request-email');
+				var email = emailInput && emailInput.value ? emailInput.value.trim() : '';
+				if (!email) return;
+
+				var btn = form.querySelector('button[type="submit"]');
+				if (btn) { btn.disabled = true; }
+				msgEl.style.display = 'none';
+
+				if (typeof window.cyaFirebase === 'undefined' || !window.cyaFirebase.sendSignInLinkToEmail) {
+					showMsg('<?php echo esc_js( __( 'Sign-in is loading. Please try again in a moment.', 'claim-your-agency' ) ); ?>', true);
+					if (btn) btn.disabled = false;
+					return;
+				}
+
+				window.cyaFirebase.sendSignInLinkToEmail(email, { url: callbackUrl, handleCodeInApp: true })
+					.then(function() {
+						showMsg('<?php echo esc_js( __( 'Check your email for the sign-in link. Click it to open your agency dashboard.', 'claim-your-agency' ) ); ?>', false);
+						if (btn) btn.disabled = false;
+					})
+					.catch(function(err) {
+						showMsg(err && err.message ? err.message : '<?php echo esc_js( __( 'Could not send the link. Please try again.', 'claim-your-agency' ) ); ?>', true);
+						if (btn) btn.disabled = false;
+					});
+			});
+		})();
+	</script>
+	<script type="module" src="<?php echo esc_url( $firebase_url ); ?>"></script>
+	<?php
+	return ob_get_clean();
+}
+
+/**
+ * Shortcode: Agency dashboard – welcome and link to edit profile (for logged-in agency owners).
+ * If URL has ?agency_edit=1, shows the edit profile form on the same page.
+ */
+function cya_render_agency_dashboard() {
+	if ( ! is_user_logged_in() ) {
+		return cya_render_agency_login_request();
+	}
+
+	$user_id = get_current_user_id();
+	if ( ! cya_user_is_agency_owner( $user_id ) ) {
+		return '<p>' . esc_html__( 'You do not have an agency account linked. If you have claimed an agency, wait for admin approval.', 'claim-your-agency' ) . '</p>';
+	}
+
+	// If editing, show the edit profile form on this page.
+	if ( isset( $_GET['agency_edit'] ) && '1' === $_GET['agency_edit'] ) {
+		return cya_render_agency_edit_profile();
+	}
+
+	$agency_post_id = cya_get_agency_post_id_for_user( $user_id );
+	$agency_name    = $agency_post_id ? get_the_title( $agency_post_id ) : __( 'Your agency', 'claim-your-agency' );
+	$user           = wp_get_current_user();
+	$display_name   = $user->display_name ? $user->display_name : $user->user_email;
+	$dashboard_url  = get_permalink( get_the_ID() );
+	$edit_url       = add_query_arg( 'agency_edit', '1', $dashboard_url );
+
+	ob_start();
+	?>
+	<div class="cya-dashboard-wrap">
+		<h2><?php echo esc_html( sprintf( __( 'Welcome, %s', 'claim-your-agency' ), $display_name ) ); ?></h2>
+		<p><?php echo esc_html( sprintf( __( 'Agency: %s', 'claim-your-agency' ), $agency_name ) ); ?></p>
+		<p><a href="<?php echo esc_url( $edit_url ); ?>" class="button"><?php esc_html_e( 'Edit agency profile', 'claim-your-agency' ); ?></a></p>
+	</div>
+	<?php
+	return ob_get_clean();
+}
+
+/**
+ * Get the gsli_agency post ID that the given user owns (agency_owner).
+ *
+ * @param int $user_id WordPress user ID.
+ * @return int 0 if none.
+ */
+function cya_get_agency_post_id_for_user( $user_id ) {
+	$posts = get_posts(
+		array(
+			'post_type'      => 'gsli_agency',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_query'     => array(
+				array( 'key' => 'agency_owner', 'value' => (int) $user_id, 'compare' => '=' ),
+			),
+		)
+	);
+	return ! empty( $posts ) ? (int) $posts[0] : 0;
+}
+
+/**
+ * Shortcode: Agency edit profile – form to edit agency details (for logged-in agency owners only).
+ */
+function cya_render_agency_edit_profile() {
+	if ( ! is_user_logged_in() ) {
+		return '<p>' . esc_html__( 'You must be signed in to edit your agency profile.', 'claim-your-agency' ) . '</p>';
+	}
+
+	$user_id        = get_current_user_id();
+	$agency_post_id = cya_get_agency_post_id_for_user( $user_id );
+	if ( ! $agency_post_id ) {
+		return '<p>' . esc_html__( 'You do not have an agency linked.', 'claim-your-agency' ) . '</p>';
+	}
+
+	$post = get_post( $agency_post_id );
+	if ( ! $post || $post->post_type !== 'gsli_agency' ) {
+		return '<p>' . esc_html__( 'Invalid agency.', 'claim-your-agency' ) . '</p>';
+	}
+
+	$title   = $post->post_title;
+	$website = get_post_meta( $agency_post_id, 'agency_website', true );
+	$email   = get_post_meta( $agency_post_id, 'agency_email', true );
+	$phone   = get_post_meta( $agency_post_id, 'agency_phone', true );
+	$address = get_post_meta( $agency_post_id, 'agency_address', true );
+	$city    = get_post_meta( $agency_post_id, 'agency_city', true );
+
+	$ajax_url = admin_url( 'admin-ajax.php' );
+	$nonce    = wp_create_nonce( 'cya_claim_nonce' );
+	ob_start();
+	?>
+	<div class="cya-edit-profile-wrap">
+		<h2><?php esc_html_e( 'Edit agency profile', 'claim-your-agency' ); ?></h2>
+		<form id="cya-agency-edit-form" class="cya-edit-form">
+			<input type="hidden" name="agency_post_id" value="<?php echo esc_attr( $agency_post_id ); ?>">
+			<input type="hidden" name="nonce" value="<?php echo esc_attr( $nonce ); ?>">
+			<p>
+				<label for="cya-agency-title"><?php esc_html_e( 'Agency name', 'claim-your-agency' ); ?></label>
+				<input type="text" id="cya-agency-title" name="agency_title" value="<?php echo esc_attr( $title ); ?>" class="widefat">
+			</p>
+			<p>
+				<label for="cya-agency-website"><?php esc_html_e( 'Website', 'claim-your-agency' ); ?></label>
+				<input type="url" id="cya-agency-website" name="agency_website" value="<?php echo esc_attr( $website ); ?>" class="widefat">
+			</p>
+			<p>
+				<label for="cya-agency-email"><?php esc_html_e( 'Email', 'claim-your-agency' ); ?></label>
+				<input type="email" id="cya-agency-email" name="agency_email" value="<?php echo esc_attr( $email ); ?>" class="widefat">
+			</p>
+			<p>
+				<label for="cya-agency-phone"><?php esc_html_e( 'Phone', 'claim-your-agency' ); ?></label>
+				<input type="text" id="cya-agency-phone" name="agency_phone" value="<?php echo esc_attr( $phone ); ?>" class="widefat">
+			</p>
+			<p>
+				<label for="cya-agency-address"><?php esc_html_e( 'Address', 'claim-your-agency' ); ?></label>
+				<input type="text" id="cya-agency-address" name="agency_address" value="<?php echo esc_attr( $address ); ?>" class="widefat">
+			</p>
+			<p>
+				<label for="cya-agency-city"><?php esc_html_e( 'City', 'claim-your-agency' ); ?></label>
+				<input type="text" id="cya-agency-city" name="agency_city" value="<?php echo esc_attr( $city ); ?>" class="widefat">
+			</p>
+			<p>
+				<button type="submit" class="button button-primary"><?php esc_html_e( 'Save changes', 'claim-your-agency' ); ?></button>
+			</p>
+			<div id="cya-agency-edit-msg" style="display:none; margin-top:10px; padding:10px; border-radius:4px;"></div>
+		</form>
+	</div>
+	<script>
+		(function() {
+			var form = document.getElementById('cya-agency-edit-form');
+			var msgEl = document.getElementById('cya-agency-edit-msg');
+			if (!form || !msgEl) return;
+			form.addEventListener('submit', function(e) {
+				e.preventDefault();
+				var fd = new FormData(form);
+				fd.append('action', 'cya_agency_update_profile');
+				var btn = form.querySelector('button[type="submit"]');
+				if (btn) btn.disabled = true;
+				fetch(<?php echo wp_json_encode( $ajax_url ); ?>, { method: 'POST', credentials: 'same-origin', body: fd })
+					.then(function(r) { return r.json(); })
+					.then(function(json) {
+						msgEl.style.display = 'block';
+						if (json && json.success) {
+							msgEl.className = 'notice notice-success';
+							msgEl.textContent = '<?php echo esc_js( __( 'Profile saved.', 'claim-your-agency' ) ); ?>';
+						} else {
+							msgEl.className = 'notice notice-error';
+							msgEl.textContent = (json && json.data && json.data.message) ? json.data.message : '<?php echo esc_js( __( 'Could not save.', 'claim-your-agency' ) ); ?>';
+						}
+						if (btn) btn.disabled = false;
+					})
+					.catch(function() {
+						msgEl.style.display = 'block';
+						msgEl.className = 'notice notice-error';
+						msgEl.textContent = '<?php echo esc_js( __( 'Could not save.', 'claim-your-agency' ) ); ?>';
+						if (btn) btn.disabled = false;
+					});
+			});
+		})();
+	</script>
+	<?php
+	return ob_get_clean();
+}
+
+/**
+ * AJAX: Update agency profile (title + meta) – only for the agency owner.
+ */
+function cya_agency_update_profile() {
+	if ( empty( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'cya_claim_nonce' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Invalid request.', 'claim-your-agency' ) ) );
+	}
+
+	if ( ! is_user_logged_in() ) {
+		wp_send_json_error( array( 'message' => __( 'You must be signed in.', 'claim-your-agency' ) ) );
+	}
+
+	$agency_post_id = isset( $_POST['agency_post_id'] ) ? (int) $_POST['agency_post_id'] : 0;
+	if ( ! $agency_post_id ) {
+		wp_send_json_error( array( 'message' => __( 'Missing agency.', 'claim-your-agency' ) ) );
+	}
+
+	$owner = (int) get_post_meta( $agency_post_id, 'agency_owner', true );
+	if ( $owner !== get_current_user_id() ) {
+		wp_send_json_error( array( 'message' => __( 'You do not have permission to edit this agency.', 'claim-your-agency' ) ) );
+	}
+
+	$post = get_post( $agency_post_id );
+	if ( ! $post || $post->post_type !== 'gsli_agency' ) {
+		wp_send_json_error( array( 'message' => __( 'Invalid agency.', 'claim-your-agency' ) ) );
+	}
+
+	$title   = isset( $_POST['agency_title'] ) ? sanitize_text_field( wp_unslash( $_POST['agency_title'] ) ) : $post->post_title;
+	$website = isset( $_POST['agency_website'] ) ? esc_url_raw( wp_unslash( $_POST['agency_website'] ) ) : '';
+	$email   = isset( $_POST['agency_email'] ) ? sanitize_email( wp_unslash( $_POST['agency_email'] ) ) : '';
+	$phone   = isset( $_POST['agency_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['agency_phone'] ) ) : '';
+	$address = isset( $_POST['agency_address'] ) ? sanitize_text_field( wp_unslash( $_POST['agency_address'] ) ) : '';
+	$city    = isset( $_POST['agency_city'] ) ? sanitize_text_field( wp_unslash( $_POST['agency_city'] ) ) : '';
+
+	wp_update_post( array( 'ID' => $agency_post_id, 'post_title' => $title ) );
+	update_post_meta( $agency_post_id, 'agency_website', $website );
+	update_post_meta( $agency_post_id, 'agency_email', $email );
+	update_post_meta( $agency_post_id, 'agency_phone', $phone );
+	update_post_meta( $agency_post_id, 'agency_address', $address );
+	update_post_meta( $agency_post_id, 'agency_city', $city );
+
+	wp_send_json_success( array( 'message' => __( 'Profile saved.', 'claim-your-agency' ) ) );
+}
+add_action( 'wp_ajax_cya_agency_update_profile', 'cya_agency_update_profile' );
+
 function cya_register_shortcodes() {
 	add_shortcode( 'agency_login_callback', 'cya_render_agency_login_callback' );
+	add_shortcode( 'agency_login_request', 'cya_render_agency_login_request' );
+	add_shortcode( 'agency_dashboard', 'cya_render_agency_dashboard' );
+	add_shortcode( 'agency_edit_profile', 'cya_render_agency_edit_profile' );
 }
 add_action( 'init', 'cya_register_shortcodes' );
 
@@ -1674,4 +2009,83 @@ function cya_mark_email_verified() {
 }
 add_action( 'wp_ajax_cya_mark_email_verified', 'cya_mark_email_verified' );
 add_action( 'wp_ajax_nopriv_cya_mark_email_verified', 'cya_mark_email_verified' );
+
+/**
+ * Check if a user is an approved agency owner (owns at least one gsli_agency or has Agency package role).
+ *
+ * @param int $user_id WordPress user ID.
+ * @return bool
+ */
+function cya_user_is_agency_owner( $user_id ) {
+	$agency_posts = get_posts(
+		array(
+			'post_type'      => 'gsli_agency',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_query'     => array(
+				array(
+					'key'   => 'agency_owner',
+					'value' => (int) $user_id,
+					'compare' => '=',
+				),
+			),
+		)
+	);
+	if ( ! empty( $agency_posts ) ) {
+		return true;
+	}
+	$agency_package = cya_get_agency_package_from_listinghub();
+	if ( $agency_package ) {
+		$user = get_user_by( 'id', $user_id );
+		if ( $user && in_array( $agency_package['role'], (array) $user->roles, true ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * AJAX: Log in an agency owner after Firebase Email Link sign-in (no password).
+ * Called from the callback page when there is no claim_id (login flow, not verification).
+ */
+function cya_agency_wp_login() {
+	if ( empty( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'cya_claim_nonce' ) ) {
+		cya_log( 'Agency WP login failed: invalid nonce.' );
+		wp_send_json_error( array( 'message' => __( 'Invalid request.', 'claim-your-agency' ) ) );
+	}
+
+	$email = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
+	if ( ! $email ) {
+		cya_log( 'Agency WP login failed: missing email.' );
+		wp_send_json_error( array( 'message' => __( 'Email is required.', 'claim-your-agency' ) ) );
+	}
+
+	$user = get_user_by( 'email', $email );
+	if ( ! $user ) {
+		cya_log( 'Agency WP login failed: no user for email.', array( 'email' => $email ) );
+		wp_send_json_error( array( 'message' => __( 'No agency account found for this email. Your claim may still be pending approval.', 'claim-your-agency' ) ) );
+	}
+
+	if ( ! cya_user_is_agency_owner( $user->ID ) ) {
+		cya_log( 'Agency WP login failed: user is not agency owner.', array( 'user_id' => $user->ID, 'email' => $email ) );
+		wp_send_json_error( array( 'message' => __( 'No agency account found for this email. Your claim may still be pending approval.', 'claim-your-agency' ) ) );
+	}
+
+	wp_clear_auth_cookie();
+	wp_set_current_user( $user->ID );
+	wp_set_auth_cookie( $user->ID, true );
+	do_action( 'wp_login', $user->user_login, $user );
+
+	$redirect = get_option( 'cya_agency_dashboard_url', '' );
+	if ( ! $redirect ) {
+		$redirect = home_url( '/' );
+	}
+
+	cya_log( 'Agency WP login success.', array( 'user_id' => $user->ID, 'email' => $email ) );
+
+	wp_send_json_success( array( 'redirect' => $redirect ) );
+}
+add_action( 'wp_ajax_cya_agency_wp_login', 'cya_agency_wp_login' );
+add_action( 'wp_ajax_nopriv_cya_agency_wp_login', 'cya_agency_wp_login' );
 
