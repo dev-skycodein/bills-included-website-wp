@@ -507,8 +507,8 @@ function cya_render_settings_page() {
 		<h1><?php esc_html_e( 'Claim Your Agency – Settings', 'claim-your-agency' ); ?></h1>
 
 		<div class="notice notice-info" style="margin: 20px 0; padding: 16px 20px; border-left: 4px solid #2271b1; max-width: 800px;">
-			<h2 style="margin: 0 0 12px 0; font-size: 1.1em;"><?php esc_html_e( 'Admin setup: what you need to do for the Claim flow to work (Steps 1 & 2)', 'claim-your-agency' ); ?></h2>
-			<p style="margin: 0 0 10px 0;"><?php esc_html_e( 'Complete these steps before testing the “Claim this agency” flow and email verification.', 'claim-your-agency' ); ?></p>
+			<h2 style="margin: 0 0 12px 0; font-size: 1.1em;"><?php esc_html_e( 'Admin setup: what you need to do for the Claim My Agency flow to work', 'claim-your-agency' ); ?></h2>
+			<p style="margin: 0 0 10px 0;"><?php esc_html_e( 'Complete these steps before testing the full “Claim this agency” + agency owner login flow.', 'claim-your-agency' ); ?></p>
 			<ol style="margin: 0; padding-left: 20px; line-height: 1.6;">
 				<li><strong><?php esc_html_e( 'Firebase project', 'claim-your-agency' ); ?></strong> — In the Firebase Console, use (or create) a project and enable <strong>Authentication → Sign-in method → Email/Password</strong>. Turn on <strong>Email link (passwordless sign-in)</strong> for that provider.</li>
 				<li><strong><?php esc_html_e( 'Authorized domains', 'claim-your-agency' ); ?></strong> — In Firebase: <strong>Authentication → Settings → Authorized domains</strong>. Add your site domain (e.g. <code>yoursite.com</code>, <code>test.yoursite.com</code>). For local testing, add <code>localhost</code>.</li>
@@ -517,8 +517,9 @@ function cya_render_settings_page() {
 				<li><strong><?php esc_html_e( 'Action URL in Firebase', 'claim-your-agency' ); ?></strong> — In Firebase: <strong>Authentication → Templates</strong> (or the Email Link / Action URL setting). Set the <strong>Action URL</strong> (or “Continue URL”) to the same URL as above (your WordPress callback page). Firebase will send users to this URL when they click the email link.</li>
 				<li><strong><?php esc_html_e( 'Firebase config in the plugin', 'claim-your-agency' ); ?></strong> — The plugin loads Firebase via its own script. Ensure <code>plugins/claim-your-agency/firebase-sdk.js</code> contains your project’s Firebase config (apiKey, authDomain, projectId, etc.). You can copy this from Firebase Console → Project settings → Your apps.</li>
 				<li><strong><?php esc_html_e( 'Email deliverability (optional but recommended)', 'claim-your-agency' ); ?></strong> — In Firebase: <strong>Authentication → Templates</strong>. Set a clear <strong>Sender name</strong> (e.g. “Bills Included”), a proper <strong>Reply-to</strong> address, and your <strong>App display name</strong> in Project settings so verification emails are less likely to go to spam.</li>
+				<li><strong><?php esc_html_e( 'Agency dashboard & login page', 'claim-your-agency' ); ?></strong> — Create a page (e.g. “Agency dashboard”) that contains the shortcode <code>[agency_dashboard]</code>. Then, in the “Agency dashboard URL” field below, set that page’s full URL. Approved agency owners will request a sign-in link and access their dashboard from this page.</li>
 			</ol>
-			<p style="margin: 12px 0 0 0; font-size: 13px;"><?php esc_html_e( 'After this, the “Claim this agency” button on listing pages will create a claim, send a verification email, and the callback page will verify the user’s email. You can then approve or reject claims under Agency Claims.', 'claim-your-agency' ); ?></p>
+			<p style="margin: 12px 0 0 0; font-size: 13px;"><?php esc_html_e( 'After this, the “Claim this agency” button on listing pages will create a claim, send a verification email, and the callback page will verify the user’s email. Approved agency owners will be able to sign in via email link and manage their agency from the dashboard page.', 'claim-your-agency' ); ?></p>
 		</div>
 
 		<form action="options.php" method="post">
