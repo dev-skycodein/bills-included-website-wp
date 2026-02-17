@@ -100,8 +100,9 @@
 		$company_address= get_post_meta($listingid, 'address',true);
 		$company_web=get_post_meta($listingid, 'contact_web',true);
 		$company_phone=get_post_meta($listingid, 'phone',true);
-		$company_email= get_post_meta($listingid, 'contact-email',true);		
-		if(has_post_thumbnail()){
+		$company_email= get_post_meta($listingid, 'contact-email',true);
+		$company_logo = get_post_meta($listingid, 'company_logo', true);
+		if (trim((string) $company_logo) === '' && has_post_thumbnail()){
 			$feature_image = wp_get_attachment_image_src( get_post_thumbnail_id( $listingid ), 'large' );
 			if(isset($feature_image[0])){
 				$company_logo =$feature_image[0];

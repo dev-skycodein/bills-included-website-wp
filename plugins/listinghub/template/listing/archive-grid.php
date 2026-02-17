@@ -75,6 +75,27 @@
 		$author = $_REQUEST['listing-author'];
 		$args['author']= (int)sanitize_text_field($author);		
 	}
+	// Filter by agency (post meta agency_post_id)
+	$agency_id = 0;
+	if ( is_array( $atts ) && ! empty( $atts['agency_post_id'] ) ) {
+		$agency_id = (int) $atts['agency_post_id'];
+	}
+	if ( ! $agency_id && get_query_var( 'listing-agency' ) !== '' ) {
+		$agency_id = (int) get_query_var( 'listing-agency' );
+	}
+	if ( ! $agency_id && ! empty( $_REQUEST['listing-agency'] ) ) {
+		$agency_id = (int) $_REQUEST['listing-agency'];
+	}
+	if ( $agency_id ) {
+		if ( ! isset( $args['meta_query'] ) ) {
+			$args['meta_query'] = array();
+		}
+		$args['meta_query'][] = array(
+			'key'   => 'agency_post_id',
+			'value' => $agency_id,
+			'compare' => '=',
+		);
+	}
 	// For featrue listing***********
 	$feature_listing_all =array();
 	$feature_listing_all =$args;
@@ -102,7 +123,7 @@
 <!-- wrap everything for our isolated bootstrap -->
 <div class="bootstrap-wrapper">
 	<!-- archieve page own design font and others -->
-	<section class=" py-5">
+	<section class=" py-3">
 		<div class="container-fluid "  >
 			<!-- Search Form -->
 			<div class="display-none"  tabindex="-1" >	.
@@ -119,7 +140,7 @@
 			<!-- end of search form -->
 			
 			<div class="row" id="full_grid"> 
-				<img class="col-md-12" src="<?php echo ep_listinghub_URLPATH."assets/images/astra.png"; ?>">
+
 					<div class="col-md-12 col-lg-12 col-xl-12 col-sm-12 " >	
 						<?php
 						if(isset($active_archive_fields['top_search_form'])){										
