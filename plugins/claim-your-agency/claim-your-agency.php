@@ -78,6 +78,33 @@ function cya_register_claim_cpt() {
 add_action( 'init', 'cya_register_claim_cpt' );
 
 /**
+ * User Verification (UV) plugin – emails that can fire (for reference).
+ * Only "user_registered" fires automatically when we create a user on approval.
+ *
+ * - user_registered    → on user_register (we skip this for CYA-created users).
+ * - email_resend_key    → when user/admin clicks "Resend verification" (not auto).
+ * - email_confirmed     → when user clicks verification link (not used if we mark verified).
+ * - send_magic_login_url → magic login link (on request).
+ * - send_mail_otp       → OTP for email OTP login (on request).
+ *
+ * We skip the UV registration email and mark CYA-created users as verified so they
+ * can log in without clicking a UV link; they only get our approval email.
+ */
+function cya_maybe_skip_uv_registration_email( $email_verification_enable, $user_id ) {
+	$skip_email = get_transient( 'cya_skip_uv_registration_email' );
+	if ( $skip_email === false || $skip_email === '' ) {
+		return $email_verification_enable;
+	}
+	$user = get_userdata( $user_id );
+	if ( ! $user || $user->user_email !== $skip_email ) {
+		return $email_verification_enable;
+	}
+	delete_transient( 'cya_skip_uv_registration_email' );
+	return 'no';
+}
+add_filter( 'user_verification_enable', 'cya_maybe_skip_uv_registration_email', 10, 2 );
+
+/**
  * Ensure new claims start with a default status of "pending".
  */
 function cya_set_default_claim_status( $post_id, $post, $update ) {
@@ -230,11 +257,12 @@ function cya_send_approval_email( $to_email, $claimant_name, $agency_post_id ) {
 	$agency_name = $agency_post_id ? get_the_title( $agency_post_id ) : '';
 	$dashboard   = get_option( 'cya_agency_dashboard_url', home_url( '/' ) );
 
-	$replacements = array(
+	$dashboard_link = '<a href="' . esc_url( $dashboard ) . '">' . esc_html( $dashboard ) . '</a>';
+	$replacements   = array(
 		'{CLAIMANT_NAME}'  => $claimant_name ? $claimant_name : $to_email,
 		'{CLAIMANT_EMAIL}' => $to_email,
 		'{AGENCY_NAME}'    => $agency_name,
-		'{DASHBOARD_URL}'  => $dashboard,
+		'{DASHBOARD_URL}'  => $dashboard_link,
 		'{SITE_NAME}'      => $site_name,
 	);
 
@@ -300,15 +328,20 @@ function cya_on_approve_link_user_and_agency( $claim_id ) {
 		if ( username_exists( $username ) ) {
 			$username = $username . '_' . wp_rand( 100, 999 );
 		}
+		// So User Verification (UV) does not send its registration email; we send our approval email only.
+		set_transient( 'cya_skip_uv_registration_email', $claimant_email, 30 );
 		$user_id = wp_create_user(
 			$username,
 			wp_generate_password( 24, true ),
 			$claimant_email
 		);
 		if ( is_wp_error( $user_id ) ) {
+			delete_transient( 'cya_skip_uv_registration_email' );
 			cya_log( 'Approve: failed to create user.', array( 'claim_id' => $claim_id, 'error' => $user_id->get_error_message() ) );
 			return $user_id;
 		}
+		// Mark verified for UV so the claimant can log in without clicking a verification link.
+		update_user_meta( $user_id, 'user_activation_status', 1 );
 		$user = get_user_by( 'ID', $user_id );
 		if ( $claimant_name ) {
 			wp_update_user(
@@ -438,8 +471,9 @@ function cya_handle_claim_status_change() {
 		);
 	}
 
-	// Redirect back to the list table or edit screen to avoid resubmission.
-	wp_safe_redirect( remove_query_arg( array( 'cya_action', '_wpnonce' ) ) );
+	// Redirect back to the Agency Claims list (avoid sending to generic edit.php).
+	$redirect = admin_url( 'edit.php?post_type=cya_claim' );
+	wp_safe_redirect( $redirect );
 	exit;
 }
 add_action( 'admin_init', 'cya_handle_claim_status_change' );
@@ -879,6 +913,7 @@ function cya_render_agency_login_callback() {
 	</div>
 	<script type="module" src="<?php echo esc_url( $firebase_sdk_url ); ?>"></script>
 	<style>
+		#cya-agency-login-callback-root{ padding: 30px 0px}
 		.cya-callback-form { max-width: 360px; margin: 1em 0; }
 		.cya-callback-form label { display: block; margin-bottom: 0.25em; font-weight: 600; }
 		.cya-callback-form input[type="email"] { width: 100%; padding: 8px 12px; margin-bottom: 12px; box-sizing: border-box; }
@@ -886,6 +921,11 @@ function cya_render_agency_login_callback() {
 		.cya-callback-msg { margin-top: 1em; padding: 10px; border-radius: 4px; }
 		.cya-callback-msg.success { background: #d4edda; color: #155724; }
 		.cya-callback-msg.error { background: #f8d7da; color: #721c24; }
+		.cya-button {
+    background-color: #9a6afe;
+    color: white;
+    border: 1px solid #a5a2a2;
+		text-transform: uppercase;}
 	</style>
 	<script>
 		(function() {
@@ -901,13 +941,43 @@ function cya_render_agency_login_callback() {
 				return params.get(name);
 			}
 
-			function showForm(root) {
+			// Firebase puts our action URL inside continueUrl, so claim_id may be there instead of top-level.
+			function getClaimIdFromUrl() {
+				var claimId = getQueryParam('claim_id');
+				if (claimId) return claimId;
+				var continueUrl = getQueryParam('continueUrl');
+				if (!continueUrl) return null;
+				try {
+					var decoded = decodeURIComponent(continueUrl);
+					var hash = decoded.indexOf('#');
+					var query = hash >= 0 ? decoded.substring(0, hash) : decoded;
+					var q = query.indexOf('?');
+					if (q === -1) return null;
+					var params = new URLSearchParams(query.substring(q));
+					return params.get('claim_id');
+				} catch (e) {
+					return null;
+				}
+			}
+
+			function showForm(root, isLoginFlow) {
+				var heading, paragraph, buttonText;
+				if (isLoginFlow) {
+					heading = <?php echo wp_json_encode( __( 'Sign in to Your Agency Account', 'claim-your-agency' ) ); ?>;
+					paragraph = <?php echo wp_json_encode( __( 'Enter the email address where you received the sign-in link to log in.', 'claim-your-agency' ) ); ?>;
+					buttonText = <?php echo wp_json_encode( __( 'Sign in', 'claim-your-agency' ) ); ?>;
+				} else {
+					heading = <?php echo wp_json_encode( __( 'Email Address Verification', 'claim-your-agency' ) ); ?>;
+					paragraph = <?php echo wp_json_encode( __( 'To complete verification, enter the email address where you received the sign-in link.', 'claim-your-agency' ) ); ?>;
+					buttonText = <?php echo wp_json_encode( __( 'Verify email', 'claim-your-agency' ) ); ?>;
+				}
 				root.innerHTML =
-					'<p><?php echo esc_js( __( 'To complete verification, enter the email address where you received the sign-in link.', 'claim-your-agency' ) ); ?></p>' +
+					'<h1>' + heading + '</h1>' +
+					'<p>' + paragraph + '</p>' +
 					'<form id="' + formId + '" class="cya-callback-form">' +
 					'<label for="' + emailInputId + '"><?php echo esc_js( __( 'Email address', 'claim-your-agency' ) ); ?></label>' +
 					'<input type="email" id="' + emailInputId + '" name="email" required placeholder="<?php echo esc_js( __( 'you@example.com', 'claim-your-agency' ) ); ?>">' +
-					'<button type="submit"><?php echo esc_js( __( 'Verify email', 'claim-your-agency' ) ); ?></button>' +
+					'<button class="button cya-button" type="submit">' + buttonText + '</button>' +
 					'</form>' +
 					'<div id="' + msgId + '" class="cya-callback-msg" style="display:none;"></div>';
 			}
@@ -964,7 +1034,8 @@ function cya_render_agency_login_callback() {
 						return;
 					}
 
-					showForm(root);
+					var isLoginFlow = !getClaimIdFromUrl();
+					showForm(root, isLoginFlow);
 
 					document.getElementById(formId).addEventListener('submit', function(e) {
 						e.preventDefault();
@@ -973,11 +1044,12 @@ function cya_render_agency_login_callback() {
 						if (!email) return;
 
 						var btn = this.querySelector('button[type="submit"]');
-						if (btn) { btn.disabled = true; btn.textContent = '<?php echo esc_js( __( 'Verifying…', 'claim-your-agency' ) ); ?>'; }
+						var btnBusyText = getClaimIdFromUrl() ? '<?php echo esc_js( __( 'Verifying…', 'claim-your-agency' ) ); ?>' : '<?php echo esc_js( __( 'Signing in…', 'claim-your-agency' ) ); ?>';
+						if (btn) { btn.disabled = true; btn.textContent = btnBusyText; }
 
 						window.cyaFirebase.signInWithEmailLink(email, window.location.href)
 							.then(function() {
-								var claimId = getQueryParam('claim_id');
+								var claimId = getClaimIdFromUrl();
 								if (claimId) {
 									return markClaimVerified(claimId, email).then(function(json) {
 										if (json && json.success) {
@@ -988,22 +1060,29 @@ function cya_render_agency_login_callback() {
 										}
 									});
 								}
-								var formData = new FormData();
-								formData.append('action', 'cya_agency_wp_login');
-								formData.append('nonce', cyaAjaxNonce);
-								formData.append('email', email);
-								return fetch(cyaAjaxUrl, { method: 'POST', credentials: 'same-origin', body: formData }).then(function(r) { return r.json(); }).then(function(json) {
-									if (json && json.success && json.data && json.data.redirect) {
-										showMessage(root, '<?php echo esc_js( __( 'Signing you in…', 'claim-your-agency' ) ); ?>', false);
-										window.location.href = json.data.redirect;
-										return;
-									}
-									showMessage(root, (json && json.data && json.data.message) ? json.data.message : '<?php echo esc_js( __( 'Could not sign you in. Your claim may still be pending approval.', 'claim-your-agency' ) ); ?>', true);
-								});
+								showMessage(root, '<?php echo esc_js( __( 'Signing you in…', 'claim-your-agency' ) ); ?>', false);
+								var form = document.createElement('form');
+								form.method = 'POST';
+								form.action = cyaAjaxUrl;
+								form.style.display = 'none';
+								function addInput(name, value) {
+									var input = document.createElement('input');
+									input.type = 'hidden';
+									input.name = name;
+									input.value = value;
+									form.appendChild(input);
+								}
+								addInput('action', 'cya_agency_wp_login');
+								addInput('nonce', cyaAjaxNonce);
+								addInput('email', email);
+								addInput('cya_redirect', '1');
+								document.body.appendChild(form);
+								form.submit();
+								return Promise.resolve();
 							})
 							.catch(function(error) {
 								showMessage(root, (error && error.message) ? error.message : '<?php echo esc_js( __( 'There was a problem verifying your email. Please use the link from your email and try again.', 'claim-your-agency' ) ); ?>', true);
-								if (btn) { btn.disabled = false; btn.textContent = '<?php echo esc_js( __( 'Verify email', 'claim-your-agency' ) ); ?>'; }
+								if (btn) { btn.disabled = false; btn.textContent = isLoginFlow ? '<?php echo esc_js( __( 'Sign in', 'claim-your-agency' ) ); ?>' : '<?php echo esc_js( __( 'Verify email', 'claim-your-agency' ) ); ?>'; }
 							});
 					});
 				});
@@ -1040,11 +1119,12 @@ function cya_render_agency_login_request() {
 	ob_start();
 	?>
 	<div class="cya-login-request-wrap">
+		<h1><?php esc_html_e( 'Agency Login Request', 'claim-your-agency' ); ?></h1>
 		<p><?php esc_html_e( 'Enter the work email for your approved agency account. We’ll send you a sign-in link (no password needed).', 'claim-your-agency' ); ?></p>
 		<form id="<?php echo esc_attr( $form_id ); ?>" class="cya-callback-form">
 			<label for="cya-login-request-email"><?php esc_html_e( 'Email address', 'claim-your-agency' ); ?></label>
 			<input type="email" id="cya-login-request-email" name="email" required placeholder="<?php echo esc_attr__( 'you@example.com', 'claim-your-agency' ); ?>">
-			<button type="submit"><?php esc_html_e( 'Send sign-in link', 'claim-your-agency' ); ?></button>
+			<button class="button cya-button" type="submit"><?php esc_html_e( 'Send sign-in link', 'claim-your-agency' ); ?></button>
 		</form>
 		<div id="<?php echo esc_attr( $msg_id ); ?>" class="cya-callback-msg" style="display:none;"></div>
 	</div>
@@ -1053,7 +1133,7 @@ function cya_render_agency_login_request() {
 		.cya-login-request-wrap .cya-callback-form label { display: block; margin-bottom: 0.25em; font-weight: 600; }
 		.cya-login-request-wrap .cya-callback-form input[type="email"] { width: 100%; padding: 8px 12px; margin-bottom: 12px; box-sizing: border-box; }
 		.cya-login-request-wrap .cya-callback-form button { padding: 10px 20px; cursor: pointer; }
-		.cya-login-request-wrap .cya-callback-msg { margin-top: 1em; padding: 10px; border-radius: 4px; max-width: 360px; }
+		.cya-login-request-wrap .cya-callback-msg { margin-top: 1em; padding: 10px; border-radius: 4px; }
 		.cya-login-request-wrap .cya-callback-msg.success { background: #d4edda; color: #155724; }
 		.cya-login-request-wrap .cya-callback-msg.error { background: #f8d7da; color: #721c24; }
 	</style>
@@ -1132,6 +1212,14 @@ function cya_render_agency_dashboard() {
 
 	ob_start();
 	?>
+	<style>
+		.cya-dashboard-wrap {
+			min-height: 40vh;
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+		}
+	</style>
 	<div class="cya-dashboard-wrap">
 		<h2><?php echo esc_html( sprintf( __( 'Welcome, %s', 'claim-your-agency' ), $display_name ) ); ?></h2>
 		<p><?php echo esc_html( sprintf( __( 'Agency: %s', 'claim-your-agency' ), $agency_name ) ); ?></p>
@@ -1192,39 +1280,78 @@ function cya_render_agency_edit_profile() {
 	$nonce    = wp_create_nonce( 'cya_claim_nonce' );
 	ob_start();
 	?>
+	<style>
+		.cya-edit-profile-wrap { max-width: 560px; margin: 0 auto 2em; }
+		.cya-edit-profile-wrap .cya-edit-heading {
+			margin: 0 0 1.25rem; font-size: 1.5rem; font-weight: 600; color: #1a1a1a; letter-spacing: -0.02em;
+		}
+		.cya-edit-profile-wrap .cya-edit-form {
+			background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 1.75rem 1.75rem 1.5rem;
+			border: 1px solid rgba(0,0,0,0.06);
+		}
+		.cya-edit-profile-wrap .cya-edit-form .cya-field { margin-bottom: 1.25rem; }
+		.cya-edit-profile-wrap .cya-edit-form .cya-field:last-of-type { margin-bottom: 0; }
+		.cya-edit-profile-wrap .cya-edit-form label {
+			display: block; margin-bottom: 0.35rem; font-size: 0.875rem; font-weight: 600; color: #374151;
+		}
+		.cya-edit-profile-wrap .cya-edit-form input[type="text"],
+		.cya-edit-profile-wrap .cya-edit-form input[type="url"],
+		.cya-edit-profile-wrap .cya-edit-form input[type="email"] {
+			width: 100%; padding: 0.6rem 0.85rem; font-size: 1rem; line-height: 1.4;
+			border: 1px solid #d1d5db; border-radius: 8px; background: #fff; color: #111;
+			box-sizing: border-box; transition: border-color 0.15s ease, box-shadow 0.15s ease;
+		}
+		.cya-edit-profile-wrap .cya-edit-form input:focus {
+			outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+		}
+		.cya-edit-profile-wrap .cya-edit-form .cya-actions { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #e5e7eb; }
+		.cya-edit-profile-wrap .cya-edit-form .cya-btn-save {
+			display: inline-block; padding: 0.6rem 1.35rem; font-size: 0.9375rem; font-weight: 600;
+			color:rgb(255, 255, 255); background: #9a6afe; border: none; border-radius: 8px; cursor: pointer;
+			transition: background 0.15s ease, transform 0.05s ease;
+		}
+		.cya-edit-profile-wrap .cya-edit-form .cya-btn-save:hover { background: #1d4ed8; }
+		.cya-edit-profile-wrap .cya-edit-form .cya-btn-save:active { transform: scale(0.98); }
+		.cya-edit-profile-wrap .cya-edit-form .cya-btn-save:disabled { opacity: 0.7; cursor: not-allowed; }
+		.cya-edit-profile-wrap #cya-agency-edit-msg {
+			margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.9375rem;
+		}
+		.cya-edit-profile-wrap #cya-agency-edit-msg.notice-success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+		.cya-edit-profile-wrap #cya-agency-edit-msg.notice-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+	</style>
 	<div class="cya-edit-profile-wrap">
-		<h2><?php esc_html_e( 'Edit agency profile', 'claim-your-agency' ); ?></h2>
+		<h2 class="cya-edit-heading"><?php esc_html_e( 'Edit agency profile', 'claim-your-agency' ); ?></h2>
 		<form id="cya-agency-edit-form" class="cya-edit-form">
 			<input type="hidden" name="agency_post_id" value="<?php echo esc_attr( $agency_post_id ); ?>">
 			<input type="hidden" name="nonce" value="<?php echo esc_attr( $nonce ); ?>">
-			<p>
+			<div class="cya-field">
 				<label for="cya-agency-title"><?php esc_html_e( 'Agency name', 'claim-your-agency' ); ?></label>
-				<input type="text" id="cya-agency-title" name="agency_title" value="<?php echo esc_attr( $title ); ?>" class="widefat">
-			</p>
-			<p>
+				<input type="text" id="cya-agency-title" name="agency_title" value="<?php echo esc_attr( $title ); ?>">
+			</div>
+			<div class="cya-field">
 				<label for="cya-agency-website"><?php esc_html_e( 'Website', 'claim-your-agency' ); ?></label>
-				<input type="url" id="cya-agency-website" name="agency_website" value="<?php echo esc_attr( $website ); ?>" class="widefat">
-			</p>
-			<p>
+				<input type="url" id="cya-agency-website" name="agency_website" value="<?php echo esc_attr( $website ); ?>">
+			</div>
+			<div class="cya-field">
 				<label for="cya-agency-email"><?php esc_html_e( 'Email', 'claim-your-agency' ); ?></label>
-				<input type="email" id="cya-agency-email" name="agency_email" value="<?php echo esc_attr( $email ); ?>" class="widefat">
-			</p>
-			<p>
+				<input type="email" id="cya-agency-email" name="agency_email" value="<?php echo esc_attr( $email ); ?>">
+			</div>
+			<div class="cya-field">
 				<label for="cya-agency-phone"><?php esc_html_e( 'Phone', 'claim-your-agency' ); ?></label>
-				<input type="text" id="cya-agency-phone" name="agency_phone" value="<?php echo esc_attr( $phone ); ?>" class="widefat">
-			</p>
-			<p>
+				<input type="text" id="cya-agency-phone" name="agency_phone" value="<?php echo esc_attr( $phone ); ?>">
+			</div>
+			<div class="cya-field">
 				<label for="cya-agency-address"><?php esc_html_e( 'Address', 'claim-your-agency' ); ?></label>
-				<input type="text" id="cya-agency-address" name="agency_address" value="<?php echo esc_attr( $address ); ?>" class="widefat">
-			</p>
-			<p>
+				<input type="text" id="cya-agency-address" name="agency_address" value="<?php echo esc_attr( $address ); ?>">
+			</div>
+			<div class="cya-field">
 				<label for="cya-agency-city"><?php esc_html_e( 'City', 'claim-your-agency' ); ?></label>
-				<input type="text" id="cya-agency-city" name="agency_city" value="<?php echo esc_attr( $city ); ?>" class="widefat">
-			</p>
-			<p>
-				<button type="submit" class="button button-primary"><?php esc_html_e( 'Save changes', 'claim-your-agency' ); ?></button>
-			</p>
-			<div id="cya-agency-edit-msg" style="display:none; margin-top:10px; padding:10px; border-radius:4px;"></div>
+				<input type="text" id="cya-agency-city" name="agency_city" value="<?php echo esc_attr( $city ); ?>">
+			</div>
+			<div class="cya-actions">
+				<button type="submit" class="cya-btn-save"><?php esc_html_e( 'Save changes', 'claim-your-agency' ); ?></button>
+			</div>
+			<div id="cya-agency-edit-msg" style="display:none;"></div>
 		</form>
 	</div>
 	<script>
@@ -1566,6 +1693,14 @@ function cya_output_claim_popup_js() {
 	?>
 	<script type="module" src="<?php echo esc_url( $firebase_sdk_url ); ?>"></script>
 	<style>
+		.cya-button {
+    background-color: #9a6afe;
+    color: white;
+    border: 1px solid #a5a2a2;
+    text-transform: uppercase;
+    padding: 10px 20px 10px 20px;
+    font-family: "Font Website", sans-serif !important;
+		}
 		.cya-claim-agency-button.cya-claim-disabled {
 			opacity: 0.6;
 			pointer-events: none;
@@ -1573,9 +1708,9 @@ function cya_output_claim_popup_js() {
 		}
 
 		#cya-claim-modal {
-			max-width: 420px;
-			width: 80%;
-			border-radius: 20px;
+			max-width: 520px;
+			width: 90%;
+			border-radius: 4px;
 			max-height: 90vh;
 			overflow-y: auto;
 		}
@@ -1584,13 +1719,41 @@ function cya_output_claim_popup_js() {
 			padding: 16px 20px;
 		}
 
+		.cya-claim-row {
+			display: flex;
+			gap: 12px;
+			margin-bottom: 10px;
+		}
+
+		.cya-claim-row .cya-claim-field {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.cya-claim-field {
+			margin-bottom: 10px;
+		}
+
+		.cya-claim-field label {
+			display: block;
+			font-weight: 600;
+			margin-bottom: 3px;
+		}
+
 		.cya-claim-input,
 		.cya-claim-textarea {
 			width: 100%;
 			padding: 10px 14px;
-			border-radius: 10px;
+			border-radius: 3px;
 			border: 1px solid #dddddd;
 			box-sizing: border-box;
+		}
+
+		@media (max-width: 500px) {
+			.cya-claim-row {
+				flex-direction: column;
+				gap: 0;
+			}
 		}
 
 		@media (max-width: 600px) {
@@ -1616,7 +1779,7 @@ function cya_output_claim_popup_js() {
 			</div>
 			<div id="cya-claim-success" style="display:none; margin-bottom:12px; font-size:14px; text-align:center;">
 				<p id="cya-claim-success-text" style="margin-bottom:12px;"></p>
-				<button type="button" id="cya-claim-success-ok" class="button button-primary">
+				<button type="button" id="cya-claim-success-ok" class="button cya-button">
 					<?php esc_html_e( 'OK', 'claim-your-agency' ); ?>
 				</button>
 			</div>
@@ -1626,42 +1789,45 @@ function cya_output_claim_popup_js() {
 				<input type="hidden" name="agency_post_id" id="cya-agency-post-id" value="" />
 				<input type="hidden" name="listing_id" id="cya-listing-id" value="" />
 
-				<div style="margin-bottom:10px;">
-					<label for="cya-claimant-name" style="display:block; font-weight:600; margin-bottom:3px;"><?php esc_html_e( 'Your name', 'claim-your-agency' ); ?></label>
-					<input type="text" id="cya-claimant-name" name="claimant_name" class="cya-claim-input" required />
+				<div class="cya-claim-row">
+					<div class="cya-claim-field">
+						<label for="cya-claimant-name"><?php esc_html_e( 'Your name', 'claim-your-agency' ); ?></label>
+						<input type="text" id="cya-claimant-name" name="claimant_name" class="cya-claim-input" required />
+					</div>
+					<div class="cya-claim-field">
+						<label for="cya-claimant-email"><?php esc_html_e( 'Work email', 'claim-your-agency' ); ?></label>
+						<input type="email" id="cya-claimant-email" name="claimant_email" class="cya-claim-input" required />
+					</div>
 				</div>
 
-				<div style="margin-bottom:10px;">
-					<label for="cya-claimant-email" style="display:block; font-weight:600; margin-bottom:3px;"><?php esc_html_e( 'Work email', 'claim-your-agency' ); ?></label>
-					<input type="email" id="cya-claimant-email" name="claimant_email" class="cya-claim-input" required />
+				<div class="cya-claim-row">
+					<div class="cya-claim-field">
+						<label for="cya-agency-name"><?php esc_html_e( 'Agency name', 'claim-your-agency' ); ?></label>
+						<input type="text" id="cya-agency-name" name="agency_name" class="cya-claim-input" readonly />
+					</div>
+					<div class="cya-claim-field">
+						<label for="cya-agency-website"><?php esc_html_e( 'Agency website', 'claim-your-agency' ); ?></label>
+						<input type="text" id="cya-agency-website" name="agency_website" class="cya-claim-input" readonly />
+					</div>
 				</div>
 
-				<div style="margin-bottom:10px;">
-					<label style="display:block; font-weight:600; margin-bottom:3px;"><?php esc_html_e( 'Agency name', 'claim-your-agency' ); ?></label>
-					<input type="text" id="cya-agency-name" name="agency_name" class="cya-claim-input" readonly />
+				<div class="cya-claim-row">
+					<div class="cya-claim-field">
+						<label for="cya-proof-staff"><?php esc_html_e( 'Staff/team page URL (optional)', 'claim-your-agency' ); ?></label>
+						<input type="url" id="cya-proof-staff" name="proof_staff_page_url" class="cya-claim-input" />
+					</div>
+					<div class="cya-claim-field">
+						<label for="cya-proof-companies"><?php esc_html_e( 'Companies House URL (optional)', 'claim-your-agency' ); ?></label>
+						<input type="url" id="cya-proof-companies" name="proof_companies_house_url" class="cya-claim-input" />
+					</div>
 				</div>
 
-				<div style="margin-bottom:10px;">
-					<label style="display:block; font-weight:600; margin-bottom:3px;"><?php esc_html_e( 'Agency website', 'claim-your-agency' ); ?></label>
-					<input type="text" id="cya-agency-website" name="agency_website" class="cya-claim-input" readonly/>
-				</div>
-
-				<div style="margin-bottom:10px;">
-					<label for="cya-proof-staff" style="display:block; font-weight:600; margin-bottom:3px;"><?php esc_html_e( 'Staff/team page URL (optional)', 'claim-your-agency' ); ?></label>
-					<input type="url" id="cya-proof-staff" name="proof_staff_page_url" class="cya-claim-input" />
-				</div>
-
-				<div style="margin-bottom:10px;">
-					<label for="cya-proof-companies" style="display:block; font-weight:600; margin-bottom:3px;"><?php esc_html_e( 'Companies House / official registration URL (optional)', 'claim-your-agency' ); ?></label>
-					<input type="url" id="cya-proof-companies" name="proof_companies_house_url" class="cya-claim-input" />
-				</div>
-
-				<div style="margin-bottom:10px;">
-					<label for="cya-proof-notes" style="display:block; font-weight:600; margin-bottom:3px;"><?php esc_html_e( 'Anything else that helps us verify you (optional)', 'claim-your-agency' ); ?></label>
+				<div class="cya-claim-field">
+					<label for="cya-proof-notes"><?php esc_html_e( 'Anything else that helps us verify you (optional)', 'claim-your-agency' ); ?></label>
 					<textarea id="cya-proof-notes" name="proof_notes" class="cya-claim-textarea" style="min-height:70px;"></textarea>
 				</div>
 
-				<div style="margin-bottom:12px;">
+				<div class="cya-claim-field" style="margin-bottom:12px;">
 					<label>
 						<input type="checkbox" id="cya-claim-consent" name="claim_consent" value="1" required />
 						<?php esc_html_e( 'I confirm I am authorised to act on behalf of this agency.', 'claim-your-agency' ); ?>
@@ -1675,7 +1841,7 @@ function cya_output_claim_popup_js() {
 				<?php endif; ?>
 
 				<div style="text-align:right;">
-					<button type="submit" id="cya-claim-submit" class="btn btn-border btn-big">
+					<button type="submit" id="cya-claim-submit" class="button cya-button">
 						<?php esc_html_e( 'Submit claim', 'claim-your-agency' ); ?>
 					</button>
 				</div>
@@ -1838,70 +2004,78 @@ function cya_output_claim_popup_js() {
 					}).then(function(resp) {
 						return resp.json();
 					}).then(function(json) {
-						if (submitBtn) {
-							submitBtn.disabled = false;
-						}
-						if (cyaLoading) {
-							cyaLoading.style.display = 'none';
-						}
-						if (json && json.success) {
-							// After successful claim, send a Firebase Email Link to verify the email identity,
-							// but do NOT grant agency/dashboard access yet.
-							var emailForLink = document.getElementById('cya-claimant-email') ? document.getElementById('cya-claimant-email').value : '';
-
-							if (window.cyaFirebase && cyaCallbackUrl && emailForLink) {
-								try {
-									// Include claim_id in the callback URL so it works when the link is opened on another device (no localStorage).
-									var callbackUrlWithClaim = cyaCallbackUrl;
-									if (json.data && json.data.claim_id) {
-										var sep = cyaCallbackUrl.indexOf('?') !== -1 ? '&' : '?';
-										callbackUrlWithClaim = cyaCallbackUrl + sep + 'claim_id=' + encodeURIComponent(String(json.data.claim_id));
-									}
-									console.log('[CYA] Preparing to send Firebase Email Link', {
-										email: emailForLink,
-										callbackUrl: callbackUrlWithClaim,
-										hasFirebase: !!window.cyaFirebase,
-										sendFnType: typeof window.cyaFirebase.sendSignInLinkToEmail,
-									});
-
-									var actionCodeSettings = {
-										url: callbackUrlWithClaim,
-										handleCodeInApp: true
-									};
-
-									window.cyaFirebase.sendSignInLinkToEmail(emailForLink, actionCodeSettings).then(function() {
-										console.log('[CYA] Firebase Email Link sendSignInLinkToEmail() resolved');
-									}).catch(function(err) {
-										console.error('[CYA] Failed to send Firebase sign-in link', err);
-									});
-								} catch (e) {
-									console.error('[CYA] Firebase not available for Email Link', e);
-								}
-							}
-
-							// Show success dialog with OK button.
-							if (cyaForm) {
-								cyaForm.reset();
-								// Keep agency info if we have it in response.
-								if (agencyNameEl) {
-									agencyNameEl.value = json.data && json.data.agency_name ? json.data.agency_name : agencyNameEl.value;
-								}
-								if (agencyWebEl) {
-									agencyWebEl.value = json.data && json.data.agency_website ? json.data.agency_website : agencyWebEl.value;
-								}
-								cyaForm.style.display = 'none';
-							}
-							if (cyaSuccess && cyaSuccessTxt) {
-								cyaSuccessTxt.textContent = json.data && json.data.message ? json.data.message : '<?php echo esc_js( __( 'Your claim has been submitted. Please check your email for the next steps.', 'claim-your-agency' ) ); ?>';
-								cyaSuccess.style.display = 'block';
-							}
-						} else {
+						if (!(json && json.success)) {
+							if (submitBtn) submitBtn.disabled = false;
+							if (cyaLoading) cyaLoading.style.display = 'none';
 							if (cyaMsg) {
 								cyaMsg.style.display = 'block';
 								cyaMsg.style.color = '#b32d2e';
-								var err = (json && json.data && json.data.message) ? json.data.message : '<?php echo esc_js( __( 'There was a problem submitting your claim. Please try again later.', 'claim-your-agency' ) ); ?>';
-								cyaMsg.textContent = err;
+								cyaMsg.textContent = (json && json.data && json.data.message) ? json.data.message : '<?php echo esc_js( __( 'There was a problem submitting your claim. Please try again later.', 'claim-your-agency' ) ); ?>';
 							}
+							return;
+						}
+
+						var emailForLink = document.getElementById('cya-claimant-email') ? document.getElementById('cya-claimant-email').value.trim() : '';
+						if (!window.cyaFirebase || !window.cyaFirebase.sendSignInLinkToEmail || !cyaCallbackUrl || !emailForLink) {
+							if (submitBtn) submitBtn.disabled = false;
+							if (cyaLoading) cyaLoading.style.display = 'none';
+							if (cyaMsg) {
+								cyaMsg.style.display = 'block';
+								cyaMsg.style.color = '#b32d2e';
+								cyaMsg.textContent = '<?php echo esc_js( __( 'Verification email could not be sent (missing configuration). Please try again later or contact support.', 'claim-your-agency' ) ); ?>';
+							}
+							return;
+						}
+
+						var callbackUrlWithClaim = cyaCallbackUrl;
+						if (json.data && json.data.claim_id) {
+							var sep = cyaCallbackUrl.indexOf('?') !== -1 ? '&' : '?';
+							callbackUrlWithClaim = cyaCallbackUrl + sep + 'claim_id=' + encodeURIComponent(String(json.data.claim_id));
+						}
+						var actionCodeSettings = { url: callbackUrlWithClaim, handleCodeInApp: true };
+
+						function showFirebaseError(err) {
+							if (submitBtn) submitBtn.disabled = false;
+							if (cyaLoading) cyaLoading.style.display = 'none';
+							var msg = '';
+							if (err && typeof err.message === 'string' && err.message.length > 0) {
+								msg = err.message;
+							} else if (err && err.code === 'auth/quota-exceeded') {
+								msg = 'Firebase: Exceeded daily quota for email sign-in. Please try again tomorrow or contact us.';
+							} else if (err && err.code === 'auth/too-many-requests') {
+								msg = '<?php echo esc_js( __( 'Too many attempts. Please try again later or contact us.', 'claim-your-agency' ) ); ?>';
+							} else {
+								msg = '<?php echo esc_js( __( 'Verification email could not be sent. Please try again or contact support.', 'claim-your-agency' ) ); ?>';
+							}
+							if (cyaMsg) {
+								cyaMsg.style.display = 'block';
+								cyaMsg.style.color = '#b32d2e';
+								cyaMsg.textContent = msg;
+								cyaMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+							}
+						}
+
+						try {
+							window.cyaFirebase.sendSignInLinkToEmail(emailForLink, actionCodeSettings)
+								.then(function() {
+									if (submitBtn) submitBtn.disabled = false;
+									if (cyaLoading) cyaLoading.style.display = 'none';
+									if (cyaForm) {
+										cyaForm.reset();
+										if (agencyNameEl) agencyNameEl.value = json.data && json.data.agency_name ? json.data.agency_name : agencyNameEl.value;
+										if (agencyWebEl) agencyWebEl.value = json.data && json.data.agency_website ? json.data.agency_website : agencyWebEl.value;
+										cyaForm.style.display = 'none';
+									}
+									if (cyaSuccess && cyaSuccessTxt) {
+										cyaSuccessTxt.textContent = json.data && json.data.message ? json.data.message : '<?php echo esc_js( __( 'Your claim has been submitted. Please check your email for the next steps.', 'claim-your-agency' ) ); ?>';
+										cyaSuccess.style.display = 'block';
+									}
+								})
+								.catch(function(err) {
+									showFirebaseError(err);
+								});
+						} catch (e) {
+							showFirebaseError(e);
 						}
 					}).catch(function() {
 						if (submitBtn) {
@@ -2331,6 +2505,12 @@ function cya_agency_wp_login() {
 	}
 
 	cya_log( 'Agency WP login success.', array( 'user_id' => $user->ID, 'email' => $email ) );
+
+	// Full-page form POST: redirect so the browser receives Set-Cookie and then loads dashboard in one flow.
+	if ( ! empty( $_POST['cya_redirect'] ) ) {
+		wp_safe_redirect( $redirect );
+		exit;
+	}
 
 	wp_send_json_success( array( 'redirect' => $redirect ) );
 }

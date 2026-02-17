@@ -1,0 +1,35 @@
+Claim my Agency
+
+[] when claim is approved the agent is assigned to agency package but due to no subscription created the payment status is pending. So he is reverted to basic role. only one listing to which he claimed for is assigned. 
+
+Claim My Agency – implementation steps (high level)
+[✓] 1. Start Verification (front-end)
+   - Add “Claim this agency” button on single listing pages (only for unclaimed agencies) that opens a popup form.
+   - Popup collects: name, work email, pre-filled agency name, agency website, and optional validation info (staff page URL, Companies House URL, notes, consent).
+   - On submit, create a pending claim record (CPT/table) tied to the agency (and listing), with status = pending.
+
+[✓] 2. Email-based domain verification (Firebase – no access before approval)
+   - Use Firebase Auth Email Link (passwordless) to verify ownership of the work email used in the claim.
+   - Do NOT grant WordPress/agency access yet; treat the verified email as an identity only, until an admin approves the claim.
+
+[✓] 3. Manual review in admin
+   - Build an admin screen listing all pending claims with the submitted data and a domain match hint (email domain vs agency website).
+   - Admin manually clicks Approve or Reject for each claim; no automatic approval.
+
+[✓] 4. On approval: link user, role and agency
+   - After approval, create or locate the corresponding WordPress user for the verified email.
+   - Assign them the Agency package role (e.g. role from package ID 5402) and store them as the owner of the agency profile (agency_owner).
+   - Optionally reassign all listings for that agency so the new owner becomes the post author.
+
+[✓] 5. Post-approval access and dashboard
+   - Configure Firebase Email Link so approved owners can log in via their work email.
+   - After login, redirect them to /agency-admin (or /my-account) where they see an agency dashboard.
+   - The dashboard must at minimum allow them to edit their agency profile details and branding.
+
+[X] 6. Team members and leads (after MVP)
+   - Allow the agency owner to invite team members (create/link additional WordPress users to the same agency).
+   - Expose renter leads/enquiries for that agency in the dashboard, with basic management (view, respond, track).
+
+[✓] 7. Analytics and additional tools (future)
+   - Add performance insights (views, clicks, conversions) for the agency’s listings into the dashboard.
+   - Gradually roll out additional tools and insights for agencies over time (e.g. reporting, export, integrations).
