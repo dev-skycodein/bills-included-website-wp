@@ -8,6 +8,7 @@ plugins/*
 !plugins/listinghub/**
 !plugins/gsheet-listing-importer/
 !plugins/gsheet-listing-importer/**
+plugins/gsheet-listing-importer/bills-included-scraping-0fcadb7076ac.json
 !plugins/claim-your-agency/
 !plugins/claim-your-agency/**
 plugins/claim-your-agency/firebase-sdk.js

@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: GSheet Listing Importer
- * Description: Imports listings from a Google Sheet CSV and creates/updates ListingHub listings.
+ * Description: Imports listings from a Google Sheet (service account) or secure endpoint and creates/updates ListingHub listings.
  * Version: 1.0.0
  * Author: Brainscop
  */
@@ -12,16 +12,20 @@ if (!defined('ABSPATH')) {
 
 const GSLI_SETTINGS_GROUP = 'gsli_settings';
 const GSLI_IMAGE_ONLY_TEST = false;
+// When true: only log counts and per-sheet row counts; do not create or update any posts. Set to false when testing is done.
+const GSLI_DRY_RUN_IMPORT = true;
 // Prevent overlapping image batch runs (seconds).
 const GSLI_IMAGE_BATCH_LOCK_TTL = 600;
 // Throttle between image downloads/uploads (microseconds).
 const GSLI_IMAGE_THROTTLE_USLEEP = 250000;
-const GSLI_OPTION_SHEET_URL = 'gsli_sheet_url';
 const GSLI_OPTION_SHEET_ID = 'gsli_sheet_id';
 const GSLI_OPTION_SHEET_GID = 'gsli_sheet_gid';
-const GSLI_OPTION_CSV_URL = 'gsli_csv_url';
+const GSLI_OPTION_SHEET_GIDS = 'gsli_sheet_gids';
+const GSLI_OPTION_SERVICE_ACCOUNT_JSON = 'gsli_service_account_json';
 const GSLI_OPTION_ENDPOINT_URL = 'gsli_endpoint_url';
 const GSLI_OPTION_ENDPOINT_TOKEN = 'gsli_endpoint_token';
+/** Default filename for service account JSON when option is empty (relative to plugin dir). */
+const GSLI_DEFAULT_SERVICE_ACCOUNT_JSON = 'bills-included-scraping-0fcadb7076ac.json';
 
 add_action('admin_menu', 'gsli_register_admin_menu');
 add_action('admin_init', 'gsli_register_settings');
@@ -33,6 +37,8 @@ add_action('gsli_process_images_batch', 'gsli_process_images_batch');
 add_filter('cron_schedules', 'gsli_add_cron_schedules');
 add_action('init', 'gsli_register_queue_post_type');
 add_action('init', 'gsli_register_agency_post_type');
+add_filter('query_vars', 'gsli_register_listing_agency_query_var');
+add_filter('template_include', 'gsli_single_agency_template', 20);
 
 function gsli_get_log_dir() {
 	return plugin_dir_path(__FILE__) . 'logs' . DIRECTORY_SEPARATOR;
@@ -100,6 +106,33 @@ function gsli_register_agency_post_type() {
 	));
 }
 
+/**
+ * Register query var so ListingHub archive can filter by agency via URL (e.g. ?listing-agency=123).
+ *
+ * @param array $vars Existing query vars.
+ * @return array
+ */
+function gsli_register_listing_agency_query_var( $vars ) {
+	$vars[] = 'listing-agency';
+	return $vars;
+}
+
+/**
+ * Use custom template for single gsli_agency so agency page shows listings grid (same as all-listings).
+ *
+ * @param string $template Current template path.
+ * @return string
+ */
+function gsli_single_agency_template( $template ) {
+	if ( is_singular( 'gsli_agency' ) ) {
+		$single = plugin_dir_path( __FILE__ ) . 'templates/single-gsli_agency.php';
+		if ( file_exists( $single ) ) {
+			return $single;
+		}
+	}
+	return $template;
+}
+
 function gsli_register_admin_menu() {
 	add_menu_page(
 		'GSheet Listings',
@@ -113,11 +146,6 @@ function gsli_register_admin_menu() {
 }
 
 function gsli_register_settings() {
-	register_setting(GSLI_SETTINGS_GROUP, GSLI_OPTION_SHEET_URL, array(
-		'type' => 'string',
-		'sanitize_callback' => 'esc_url_raw',
-		'default' => '',
-	));
 	register_setting(GSLI_SETTINGS_GROUP, GSLI_OPTION_SHEET_ID, array(
 		'type' => 'string',
 		'sanitize_callback' => 'sanitize_text_field',
@@ -128,9 +156,14 @@ function gsli_register_settings() {
 		'sanitize_callback' => 'sanitize_text_field',
 		'default' => '0',
 	));
-	register_setting(GSLI_SETTINGS_GROUP, GSLI_OPTION_CSV_URL, array(
+	register_setting(GSLI_SETTINGS_GROUP, GSLI_OPTION_SHEET_GIDS, array(
 		'type' => 'string',
-		'sanitize_callback' => 'esc_url_raw',
+		'sanitize_callback' => 'sanitize_text_field',
+		'default' => '',
+	));
+	register_setting(GSLI_SETTINGS_GROUP, GSLI_OPTION_SERVICE_ACCOUNT_JSON, array(
+		'type' => 'string',
+		'sanitize_callback' => 'sanitize_file_name',
 		'default' => '',
 	));
 	register_setting(GSLI_SETTINGS_GROUP, GSLI_OPTION_ENDPOINT_URL, array(
@@ -152,10 +185,11 @@ function gsli_render_admin_page() {
 
 	$sheet_id = get_option(GSLI_OPTION_SHEET_ID, '');
 	$sheet_gid = get_option(GSLI_OPTION_SHEET_GID, '0');
-	$csv_url = get_option(GSLI_OPTION_CSV_URL, '');
-	$sheet_url = get_option(GSLI_OPTION_SHEET_URL, '');
+	$sheet_gids = get_option(GSLI_OPTION_SHEET_GIDS, '');
+	$service_account_json = get_option(GSLI_OPTION_SERVICE_ACCOUNT_JSON, '');
 	$endpoint_url = get_option(GSLI_OPTION_ENDPOINT_URL, '');
 	$endpoint_token = get_option(GSLI_OPTION_ENDPOINT_TOKEN, '');
+	$json_path = gsli_get_service_account_json_path();
 
 	$import_result = isset($_GET['gsli_import']) ? sanitize_text_field(wp_unslash($_GET['gsli_import'])) : '';
 	$created = isset($_GET['created']) ? (int) $_GET['created'] : 0;
@@ -163,6 +197,7 @@ function gsli_render_admin_page() {
 	$skipped = isset($_GET['skipped']) ? (int) $_GET['skipped'] : 0;
 	$error = isset($_GET['error']) ? sanitize_text_field(wp_unslash($_GET['error'])) : '';
 	$log_file = isset($_GET['log']) ? sanitize_text_field(wp_unslash($_GET['log'])) : '';
+	$dry_run = isset($_GET['dry_run']) && $_GET['dry_run'] === '1';
 	$delete_result = isset($_GET['gsli_deleted']) ? (int) $_GET['gsli_deleted'] : 0;
 
 	?>
@@ -171,7 +206,11 @@ function gsli_render_admin_page() {
 
 		<?php if ($import_result === 'success') : ?>
 			<div class="notice notice-success is-dismissible">
-				<p><?php echo esc_html("Import completed. Created: $created, Updated: $updated, Skipped: $skipped."); ?></p>
+				<?php if ($dry_run) : ?>
+					<p><?php echo esc_html("Dry run: would create $created, would update $updated, skipped $skipped. No posts were created or updated."); ?></p>
+				<?php else : ?>
+					<p><?php echo esc_html("Import completed. Created: $created, Updated: $updated, Skipped: $skipped."); ?></p>
+				<?php endif; ?>
 				<?php if ($log_file) : ?>
 					<p><?php echo esc_html('Log file: ' . $log_file); ?></p>
 				<?php endif; ?>
@@ -196,38 +235,36 @@ function gsli_render_admin_page() {
 
 			<table class="form-table" role="presentation">
 				<tr>
-					<th scope="row"><label for="gsli_sheet_url">Google Sheet URL (optional)</label></th>
-					<td>
-						<input type="url" id="gsli_sheet_url" name="<?php echo esc_attr(GSLI_OPTION_SHEET_URL); ?>" value="<?php echo esc_attr($sheet_url); ?>" class="regular-text" />
-						<p class="description">Paste the full Google Sheet URL. If set, it overrides Sheet ID/GID and CSV URL. Sheet must be shared (Anyone with the link can view).</p>
-					</td>
-				</tr>
-				<tr>
 					<th scope="row"><label for="gsli_sheet_id">Google Sheet ID</label></th>
 					<td>
 						<input type="text" id="gsli_sheet_id" name="<?php echo esc_attr(GSLI_OPTION_SHEET_ID); ?>" value="<?php echo esc_attr($sheet_id); ?>" class="regular-text" />
-						<p class="description">From the URL: https://docs.google.com/spreadsheets/d/ID/</p>
+						<p class="description">From the URL: https://docs.google.com/spreadsheets/d/<strong>ID</strong>/edit</p>
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="gsli_sheet_gid">Sheet GID (tab id)</label></th>
+					<th scope="row"><label for="gsli_sheet_gids">All sheet GIDs (comma-separated)</label></th>
 					<td>
-						<input type="text" id="gsli_sheet_gid" name="<?php echo esc_attr(GSLI_OPTION_SHEET_GID); ?>" value="<?php echo esc_attr($sheet_gid); ?>" class="small-text" />
-						<p class="description">Defaults to 0 for the first tab.</p>
+						<input type="text" id="gsli_sheet_gids" name="<?php echo esc_attr(GSLI_OPTION_SHEET_GIDS); ?>" value="<?php echo esc_attr($sheet_gids); ?>" class="large-text" placeholder="0,1579133780,1511803448,..." />
+						<p class="description">Import from multiple tabs. Enter each tab's GID (from the sheet URL when you open that tab, e.g. #gid=0). First tab is usually 0.</p>
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="gsli_csv_url">CSV URL (optional)</label></th>
+					<th scope="row"><label for="gsli_service_account_json">Service account JSON filename</label></th>
 					<td>
-						<input type="url" id="gsli_csv_url" name="<?php echo esc_attr(GSLI_OPTION_CSV_URL); ?>" value="<?php echo esc_attr($csv_url); ?>" class="regular-text" />
-						<p class="description">If set, this overrides the Sheet ID/GID unless you provide a secure endpoint below.</p>
+						<input type="text" id="gsli_service_account_json" name="<?php echo esc_attr(GSLI_OPTION_SERVICE_ACCOUNT_JSON); ?>" value="<?php echo esc_attr($service_account_json); ?>" class="regular-text" placeholder="<?php echo esc_attr(GSLI_DEFAULT_SERVICE_ACCOUNT_JSON); ?>" />
+						<p class="description">Filename of the service account JSON file in this plugin's directory (e.g. <?php echo esc_html(GSLI_DEFAULT_SERVICE_ACCOUNT_JSON); ?>). Share the Google Sheet with the service account email (Viewer). Leave empty to use default. Run <code>composer install</code> in the plugin folder if you see "Google API client not found".</p>
+						<?php if ($json_path !== '' && !is_readable($json_path)) : ?>
+							<p class="description" style="color:#b32d2e;">File not found or not readable: <?php echo esc_html(basename($json_path)); ?></p>
+						<?php elseif ($json_path !== '') : ?>
+							<p class="description" style="color:#00a32a;">Using: <?php echo esc_html(basename($json_path)); ?></p>
+						<?php endif; ?>
 					</td>
 				</tr>
 				<tr>
 					<th scope="row"><label for="gsli_endpoint_url">Secure Endpoint URL (optional)</label></th>
 					<td>
 						<input type="url" id="gsli_endpoint_url" name="<?php echo esc_attr(GSLI_OPTION_ENDPOINT_URL); ?>" value="<?php echo esc_attr($endpoint_url); ?>" class="regular-text" />
-						<p class="description">Apps Script or custom API that returns JSON or CSV. If set, it overrides all other sources.</p>
+						<p class="description">If set, listings are fetched from this URL (JSON or CSV) instead of the Google Sheet.</p>
 					</td>
 				</tr>
 				<tr>
@@ -245,7 +282,7 @@ function gsli_render_admin_page() {
 		<hr />
 
 		<h2>Run Import</h2>
-		<p>Use a secure endpoint or a public CSV. First row is treated as headers for CSV; JSON should be an array of objects.</p>
+		<p>Data is fetched via Google Sheets API (service account) or, if set, from the Secure Endpoint URL (JSON or CSV). Dry run is <?php echo GSLI_DRY_RUN_IMPORT ? 'on' : 'off'; ?> (see constant GSLI_DRY_RUN_IMPORT).</p>
 		<p>Required column: <code>title</code>. Optional: <code>content</code>, <code>excerpt</code>, <code>status</code>, <code>slug</code>, <code>listing_id</code>. All other columns are saved as post meta with matching keys.</p>
 		<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
 			<?php wp_nonce_field('gsli_import_action', 'gsli_import_nonce'); ?>
@@ -399,6 +436,11 @@ function gsli_handle_import() {
 	$updated = 0;
 	$skipped = 0;
 
+	$dry_run = GSLI_DRY_RUN_IMPORT;
+	if ($dry_run) {
+		gsli_log('Dry run: no posts will be created or updated.', array());
+	}
+
 	foreach ($rows as $index => $row) {
 		$data = gsli_map_row($headers, $row);
 		if (gsli_row_is_empty($data)) {
@@ -452,6 +494,18 @@ function gsli_handle_import() {
 		}
 
 		$existing_id = gsli_find_existing_post_id($post_type, $data, $postarr);
+
+		if ($dry_run) {
+			if ($existing_id) {
+				$updated++;
+				gsli_log('Dry run: would update.', array('row' => $index + 1, 'post_id' => $existing_id, 'title' => $title));
+			} else {
+				$created++;
+				gsli_log('Dry run: would create.', array('row' => $index + 1, 'title' => $title));
+			}
+			continue;
+		}
+
 		if ($existing_id) {
 			$postarr['ID'] = $existing_id;
 			$result = wp_update_post($postarr, true);
@@ -483,7 +537,11 @@ function gsli_handle_import() {
 		}
 	}
 
-	gsli_log('Import finished.', array('created' => $created, 'updated' => $updated, 'skipped' => $skipped));
+	if ($dry_run) {
+		gsli_log('Dry run finished.', array('would_create' => $created, 'would_update' => $updated, 'skipped' => $skipped));
+	} else {
+		gsli_log('Import finished.', array('created' => $created, 'updated' => $updated, 'skipped' => $skipped));
+	}
 	$import_duration = microtime(true) - $import_start;
 	gsli_log('Import duration.', array('seconds' => round($import_duration, 2)));
 	wp_safe_redirect(add_query_arg(array(
@@ -493,6 +551,7 @@ function gsli_handle_import() {
 		'updated' => $updated,
 		'skipped' => $skipped,
 		'log' => $log_filename,
+		'dry_run' => $dry_run ? '1' : '0',
 	), admin_url('admin.php')));
 	exit;
 }
@@ -595,63 +654,23 @@ function gsli_handle_delete_listings() {
 	exit;
 }
 
-function gsli_get_csv_url() {
-	$sheet_url = get_option(GSLI_OPTION_SHEET_URL, '');
-	if (!empty($sheet_url)) {
-		$export_url = gsli_build_export_csv_url($sheet_url);
-		if ($export_url !== '') {
-			return $export_url;
-		}
+/**
+ * Full path to the service account JSON file (plugin dir + option or default filename).
+ *
+ * @return string Full path, or '' if not set or not readable.
+ */
+function gsli_get_service_account_json_path() {
+	$filename = get_option(GSLI_OPTION_SERVICE_ACCOUNT_JSON, '');
+	$filename = trim((string) $filename);
+	if ($filename === '') {
+		$filename = GSLI_DEFAULT_SERVICE_ACCOUNT_JSON;
 	}
-
-	$csv_url = get_option(GSLI_OPTION_CSV_URL, '');
-	if (!empty($csv_url)) {
-		return $csv_url;
-	}
-
-	$sheet_id = get_option(GSLI_OPTION_SHEET_ID, '');
-	if (empty($sheet_id)) {
+	$filename = basename($filename);
+	if ($filename === '' || preg_match('/[^a-zA-Z0-9._-]/', $filename)) {
 		return '';
 	}
-
-	$gid = get_option(GSLI_OPTION_SHEET_GID, '0');
-	$gid = $gid !== '' ? $gid : '0';
-
-	return sprintf(
-		'https://docs.google.com/spreadsheets/d/%s/export?format=csv&gid=%s',
-		rawurlencode($sheet_id),
-		rawurlencode($gid)
-	);
-}
-
-function gsli_build_export_csv_url($sheet_url) {
-	if ($sheet_url === '') {
-		return '';
-	}
-
-	$id = '';
-	if (preg_match('#/d/([a-zA-Z0-9-_]+)#', $sheet_url, $matches)) {
-		$id = $matches[1];
-	}
-	if ($id === '') {
-		return '';
-	}
-
-	$gid = '0';
-	$parts = wp_parse_url($sheet_url);
-	if (!empty($parts['query'])) {
-		parse_str($parts['query'], $query);
-		if (!empty($query['gid'])) {
-			$gid = (string) $query['gid'];
-		}
-	}
-
-	return sprintf(
-		'https://docs.google.com/spreadsheets/d/%s/export?format=csv&id=%s&gid=%s',
-		rawurlencode($id),
-		rawurlencode($id),
-		rawurlencode($gid)
-	);
+	$path = plugin_dir_path(__FILE__) . $filename;
+	return is_readable($path) ? $path : '';
 }
 
 function gsli_fetch_source_rows() {
@@ -660,12 +679,121 @@ function gsli_fetch_source_rows() {
 		return gsli_fetch_from_endpoint($endpoint_url);
 	}
 
-	$csv_url = gsli_get_csv_url();
-	if (empty($csv_url)) {
-		return new WP_Error('gsli_missing_source', 'Missing secure endpoint, Sheet URL, Sheet ID, or CSV URL.');
+	$sheet_id = get_option(GSLI_OPTION_SHEET_ID, '');
+	$sheet_gids_raw = get_option(GSLI_OPTION_SHEET_GIDS, '');
+	$sheet_gids_trimmed = trim((string) $sheet_gids_raw);
+	$json_path = gsli_get_service_account_json_path();
+
+	if ($sheet_id === '' || $sheet_gids_trimmed === '') {
+		return new WP_Error('gsli_missing_source', 'Set Google Sheet ID and All sheet GIDs (comma-separated).');
+	}
+	if ($json_path === '') {
+		return new WP_Error('gsli_missing_json', 'Service account JSON file not found. Place the JSON file in the plugin directory and set its filename in settings, or run composer install.');
 	}
 
-	return gsli_fetch_csv_rows($csv_url);
+	return gsli_fetch_sheet_rows_via_api($sheet_id, $sheet_gids_trimmed, $json_path);
+}
+
+/**
+ * Fetch and merge rows from multiple sheet tabs via Google Sheets API (service account).
+ *
+ * @param string $sheet_id Google Spreadsheet ID.
+ * @param string $sheet_gids_comma Comma-separated list of sheet GIDs (tab ids).
+ * @param string $credentials_path Full path to service account JSON file.
+ * @return array{headers: array, rows: array}|WP_Error
+ */
+function gsli_fetch_sheet_rows_via_api($sheet_id, $sheet_gids_comma, $credentials_path) {
+	$autoload = plugin_dir_path(__FILE__) . 'vendor/autoload.php';
+	if (!is_file($autoload) || !is_readable($autoload)) {
+		return new WP_Error('gsli_no_client', 'Google API client not found. Run "composer install" in the plugin directory.');
+	}
+
+	require_once $autoload;
+
+	$client = new \Google\Client();
+	$client->setAuthConfig($credentials_path);
+	$client->addScope(\Google\Service\Sheets::SPREADSHEETS_READONLY);
+
+	$service = new \Google\Service\Sheets($client);
+
+	// Get sheet metadata: sheetId (gid) -> title.
+	$spreadsheet = $service->spreadsheets->get($sheet_id, array('fields' => 'sheets(properties(sheetId,title))'));
+	$gid_to_title = array();
+	if (!empty($spreadsheet->sheets)) {
+		foreach ($spreadsheet->sheets as $sheet) {
+			if (isset($sheet->properties->sheetId, $sheet->properties->title)) {
+				$gid_to_title[(string) $sheet->properties->sheetId] = $sheet->properties->title;
+			}
+		}
+	}
+
+	$gids = array_filter(array_map('trim', explode(',', $sheet_gids_comma)));
+	if (empty($gids)) {
+		return new WP_Error('gsli_multi_gids_empty', 'No sheet GIDs provided.');
+	}
+
+	$headers = null;
+	$all_rows = array();
+
+	foreach ($gids as $gid) {
+		$title = isset($gid_to_title[$gid]) ? $gid_to_title[$gid] : null;
+		if ($title === null) {
+			gsli_log('Sheet GID skipped (no matching tab in spreadsheet).', array('gid' => $gid));
+			continue;
+		}
+
+		// Range: 'SheetName'!A:ZZ (quote title if it contains space or special chars).
+		$safe_title = str_replace("'", "''", $title);
+		if (preg_match('/[\s,]/', $safe_title)) {
+			$range = "'" . $safe_title . "'!A:ZZ";
+		} else {
+			$range = $safe_title . '!A:ZZ';
+		}
+
+		try {
+			$response = $service->spreadsheets_values->get($sheet_id, $range);
+		} catch (Exception $e) {
+			gsli_log('Sheets API error for GID.', array('gid' => $gid, 'error' => $e->getMessage()));
+			return new WP_Error('gsli_sheets_api', 'Sheets API error for GID ' . $gid . ': ' . $e->getMessage());
+		}
+
+		$values = $response->getValues();
+		if (empty($values)) {
+			gsli_log('Sheet GID rows (empty).', array('gid' => $gid, 'title' => $title));
+			continue;
+		}
+
+		$sheet_headers = gsli_normalize_headers(array_shift($values));
+		$sheet_rows = $values;
+
+		if ($headers === null) {
+			$headers = $sheet_headers;
+			$all_rows = $sheet_rows;
+		} else {
+			foreach ($sheet_rows as $row) {
+				$all_rows[] = $row;
+			}
+		}
+
+		$row_count = count($sheet_rows);
+		gsli_log('Sheet GID rows.', array('gid' => $gid, 'title' => $title, 'rows' => $row_count));
+	}
+
+	if ($headers === null || empty($headers)) {
+		return new WP_Error('gsli_sheets_empty', 'No rows or headers found in any sheet.');
+	}
+
+	// Align row length to headers (Sheets API may return shorter rows).
+	foreach ($all_rows as $i => $row) {
+		$all_rows[$i] = array_pad(is_array($row) ? $row : array(), count($headers), '');
+	}
+
+	gsli_log('Total rows from all sheets.', array('total_rows' => count($all_rows)));
+
+	return array(
+		'headers' => $headers,
+		'rows' => $all_rows,
+	);
 }
 
 function gsli_fetch_from_endpoint($endpoint_url) {
@@ -705,33 +833,6 @@ function gsli_fetch_from_endpoint($endpoint_url) {
 				return gsli_rows_from_objects($objects);
 			}
 		}
-	}
-
-	return gsli_fetch_csv_rows_from_body($body);
-}
-
-function gsli_fetch_csv_rows($csv_url) {
-	$response = wp_remote_get($csv_url, array('timeout' => 20));
-	if (is_wp_error($response)) {
-		return new WP_Error('gsli_csv_error', 'Failed to fetch CSV: ' . $response->get_error_message());
-	}
-
-	$code = wp_remote_retrieve_response_code($response);
-	if ((int) $code !== 200) {
-		return new WP_Error('gsli_csv_status', 'CSV request failed with status: ' . $code);
-	}
-
-	$headers = wp_remote_retrieve_headers($response);
-	if (is_array($headers)) {
-		$headers = array_change_key_case($headers, CASE_LOWER);
-		if (!empty($headers['x-frame-options']) && strtolower($headers['x-frame-options']) === 'deny') {
-			return new WP_Error('gsli_csv_private', 'Sheet is not public or shared.');
-		}
-	}
-
-	$body = wp_remote_retrieve_body($response);
-	if (trim($body) === '') {
-		return new WP_Error('gsli_csv_empty', 'CSV response was empty.');
 	}
 
 	return gsli_fetch_csv_rows_from_body($body);
@@ -1021,6 +1122,14 @@ function gsli_apply_listinghub_mapping($post_id, $data, $post_type) {
 	foreach ($meta_map as $source => $meta_key) {
 		if (isset($data[$source]) && $data[$source] !== '') {
 			update_post_meta($post_id, $meta_key, sanitize_text_field($data[$source]));
+		}
+	}
+
+	// Agency logo: stored per listing in company_logo (each listing has its own row in postmeta).
+	if (!empty($data['agency_logo'])) {
+		$logo_url = esc_url_raw(trim((string) $data['agency_logo']));
+		if ($logo_url !== '') {
+			update_post_meta($post_id, 'company_logo', $logo_url);
 		}
 	}
 
