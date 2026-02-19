@@ -79,14 +79,14 @@
 											$submit_value=(isset($_REQUEST['sf'.$field_key])?$_REQUEST['sf'.$field_key]:'' );
 											if($field_value=='text-field'){
 												if($field_key=='address'){ ?>
-												<div class="form-group col-md-3 my-0 pb-3 py-0 ep_search_field " id="searchaddressauto">
+												<div class="form-group col-md-3 my-0 pb-3 py-0 ep_search_field col-md-3" id="searchaddressauto">
 													<div id="search-box" ></div>
 													<div id="map_address"></div>	
 												</div>	
 												<?php
 												}elseif($field_key=='near_to_me'){ 
 												?>											
-												<div class="form-group col-md-3 my-0 pb-3 py-0 ep_search_field" >
+												<div class="form-group col-md-3 my-0 pb-3 py-0 ep_search_field col-md-3" >
 													<div class="input-group  mt-3  ">	
 														<label class="customcheck mr-2">
 															<input type="checkbox" value="on"  name="neartome" id="neartome" onclick="listinghub_getLocation()"  <?php echo (isset($_REQUEST['neartome']) ? ' checked':' '); ?> >
@@ -99,14 +99,14 @@
 												<?php
 													}else{
 												?>
-												<div class="form-group col-md-3 my-0 pb-3 py-0 ep_search_field" >
+												<div class="form-group col-md-3 my-0 pb-3 py-0 ep_search_field col-md-3" >
 													<input type="text" class="form-control " name="sf<?php echo esc_attr($field_key); ?>" id="<?php echo esc_attr($field_key); ?>id" placeholder="<?php echo esc_attr($trandlated_title); ?>" value="<?php echo esc_attr($submit_value); ?>">
 												</div>	
 												<?php
 												}
 											}										
 											if($field_value=='datefield'){ ?>
-											<div class="form-group col-md-3 my-0 pb-3 py-0 ep_search_field" >
+											<div class="form-group col-md-3 my-0 pb-3 py-0 ep_search_field col-md-3" >
 												<input type="text" class="form-control  searchdate"  name="sf<?php echo esc_attr($field_key); ?>" id="<?php echo esc_attr($field_key); ?>id" placeholder="<?php echo esc_attr($trandlated_title); ?>" value="<?php echo esc_attr($submit_value); ?>">
 											</div>										
 											<?php
@@ -116,9 +116,15 @@
 												$cat_tag_location=  str_replace($listinghub_directory_url,'',$cat_tag_location);  
 												if($cat_tag_location=='category' OR $cat_tag_location=='tag' OR $cat_tag_location=='locations'){
 												?>
-												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field" >
+												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field col-md-3" >
 													<select name="sf<?php echo esc_attr($field_key); ?>" class="form-control " >
-														<option value=""><?php  esc_attr_e('Select ','listinghub');?> <?php echo esc_attr(str_replace('_',' ',$cat_tag_location)); ?></option>
+													<?php 
+														if(esc_attr(str_replace('_',' ',$cat_tag_location))==="category"){
+															echo '<option value="">'.esc_html__('Category','listinghub').'</option>';
+														}else{
+															echo '<option value="">'.esc_attr(str_replace('_',' ',$cat_tag_location)).'</option>';
+														}
+													?>	
 														<?php
 															$taxonomy = $field_key;
 															$args = array(
@@ -176,22 +182,40 @@
 												}elseif($field_key=='sort_listing'){
 												
 														?>
-													<div class="form-group col-md-3 ep_search_field" id="sort_listing_div">													
-													<select name="sf<?php echo esc_attr($field_key); ?>" id="sf<?php echo esc_attr($field_key); ?>" class="form-control form-control-sm 	40" >
-														<option value=""><?php  esc_attr_e('Sort By Price','listinghub');?></option>
-														
-														<!--<option  <?php echo esc_html($submit_value=='asc'?' selected':' '); ?> value="asc" ><?php  esc_attr_e('A to Z (title)','listinghub');?></option>-->
-														<!--<option <?php echo esc_html($submit_value=='desc'?' selected':' '); ?> value="desc" ><?php  esc_attr_e('Z to A (title)','listinghub');?></option>-->
-														<!--<option  <?php echo esc_html($submit_value=='date-desc'?' selected':' '); ?> value="date-desc" ><?php  esc_attr_e('Latest listings','listinghub');?></option>-->
-														<!--<option  <?php echo esc_html($submit_value=='date-asc'?' selected':' '); ?> value="date-asc" ><?php  esc_attr_e('Oldest listings','listinghub');?></option>-->
-														<!--<option  <?php echo esc_html($submit_value=='rand'?' selected':' '); ?> value="rand" ><?php  esc_attr_e('Random listings','listinghub');?></option>-->
-													    <option  <?php echo esc_html($submit_value=='high-to-low'?' selected':' '); ?> value="high-to-low" ><?php  esc_attr_e('High to Low Price','listinghub');?></option>
-													    <option  <?php echo esc_html($submit_value=='low-to-high'?' selected':' '); ?> value="low-to-high" ><?php  esc_attr_e('Low to High Price','listinghub');?></option>
-													</select>
+													<div class="form-group col-md-3 ep_search_field col-md-3" id="sort_listing_div">													
+														<select name="sf<?php echo esc_attr($field_key); ?>" id="sf<?php echo esc_attr($field_key); ?>" class="form-control form-control-sm 	40" >
+															<option value=""><?php  esc_attr_e('Sort by price','listinghub');?></option>
+															<option  <?php echo esc_html($submit_value=='high-to-low'?' selected':' '); ?> value="high-to-low" ><?php  esc_attr_e('High to low price','listinghub');?></option>
+															<option  <?php echo esc_html($submit_value=='low-to-high'?' selected':' '); ?> value="low-to-high" ><?php  esc_attr_e('Low to high price','listinghub');?></option>
+														</select>
+													</div>
+													<?php
+													// Price range dropdowns rendered directly after sort by price
+													$min_selected = isset($_REQUEST['sfsearch_price_min']) ? intval($_REQUEST['sfsearch_price_min']) : '';
+													$max_selected = isset($_REQUEST['sfsearch_price_max']) ? intval($_REQUEST['sfsearch_price_max']) : '';
+													$price_steps = array(25,50,75,100,125,150,175,200,225,250,275,300);
+													?>
+													<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field col-md-3">
+														<select name="sfsearch_price_min" class="form-control ">
+															<option value=""><?php esc_attr_e('Min price','listinghub'); ?></option>
+															<?php foreach($price_steps as $price_step){
+																$selected_min = ($min_selected === $price_step ? ' selected' : '');
+																echo '<option value="'.esc_attr($price_step).'"'.$selected_min.'>£'.esc_html($price_step).'</option>';
+															} ?>
+														</select>
+													</div>
+													<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field col-md-3">
+														<select name="sfsearch_price_max" class="form-control ">
+															<option value=""><?php esc_attr_e('Max price','listinghub'); ?></option>
+															<?php foreach($price_steps as $price_step){
+																$selected_max = ($max_selected === $price_step ? ' selected' : '');
+																echo '<option value="'.esc_attr($price_step).'"'.$selected_max.'>£'.esc_html($price_step).'</option>';
+															} ?>
+														</select>
 													</div>
 												<?php
 												}elseif($field_key=='title'){?>
-												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field">
+												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field col-md-3">
 													<?php
 														
 														$args_metadata = array(
@@ -214,7 +238,7 @@
 												</div>
 												<?php
 												}else{?>
-												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field">
+												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field col-md-3">
 													<?php
 														$args_metadata = array(
 														'post_type'  => $listinghub_directory_url,
@@ -272,7 +296,7 @@
 												$cat_tag_location=  str_replace('-','',$field_key); 
 												$cat_tag_location=  str_replace($listinghub_directory_url,'',$cat_tag_location);  
 												if($cat_tag_location=='category' OR $cat_tag_location=='tag' OR $cat_tag_location=='locations'){ ?>
-												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field" >
+												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field col-md-3" >
 													<select name="sf<?php echo esc_attr($field_key); ?>[]" id="<?php echo esc_attr($field_key); ?>id" class="form-control" multiple="multiple" >															
 														<?php
 															if(!is_array($submit_value)){$submit_value2=array($submit_value);}else{$submit_value2=$submit_value;}
@@ -329,7 +353,7 @@
 												</div>
 												<?php
 												}elseif($field_key=='review'){ ?>
-												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field">
+												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field col-md-3">
 													<select  name="sf<?php echo esc_attr($field_key); ?>[]" id="<?php echo esc_attr($field_key); ?>id" class="form-control multiselect "  multiple="multiple"   >
 														
 														<?php
@@ -345,7 +369,7 @@
 												</div>	
 												<?php
 												}elseif($field_key=='title'){?>
-												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field">
+												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field col-md-3">
 													<?php
 														
 														$args_metadata = array(
@@ -399,7 +423,7 @@
 														}
 													}
 												?>
-												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field">
+												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field col-md-3">
 													<select  name="sf<?php echo esc_attr($field_key); ?>[]" id="<?php echo esc_attr($field_key); ?>id" class="form-control multiselect "  multiple="multiple"   >
 														<?php
 															if(!is_array($submit_value)){$submit_value2=array($submit_value);}else{$submit_value2=$submit_value;}
@@ -423,7 +447,7 @@
 											}
 											if($field_value=='multi-checkbox-group'){ 											 
 												 ?>
-												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field" >
+												<div class="form-group col-md-3 my-0 py-0 pb-3 ep_search_field col-md-3" >
 													<select name="sf<?php echo esc_attr($field_key); ?>[]" id="<?php echo esc_attr($field_key); ?>id" class="form-control " multiple="multiple" >															
 														<?php
 															if(!is_array($submit_value)){$submit_value2=array($submit_value);}else{$submit_value2=$submit_value;}
@@ -489,7 +513,7 @@
 								}
 							?>
 							
-							<div class="form-group col-md-3 my-0 py-0 ep_search_field" >	
+							<div class="form-group col-md-3 my-0 py-0 ep_search_field col-md-3" >	
 								<div class="btn-toolbar" role="toolbar" aria-label="Toolbar with button groups">
 								 <div class="btn-group  col-md-12 " role="group" >
 									<button type="submit" class="btn btn-big mb-2"><?php  esc_html_e('Search ','listinghub');?></button>
@@ -525,7 +549,7 @@
 	'adminnonce'=> wp_create_nonce("admin"),
 	'data_for_translate'=> $data_for_translate,
 	'active_search_fields'	=>$active_search_fields,
-	'select_text'=> esc_html__('Select ','listinghub'),
+	'select_text'=> '',
 	'search'=> esc_html__('Search ','listinghub'),
 	'selectAll'=> esc_html__('Select All ','listinghub'),
 	'unselectAll'=> esc_html__('Unselect All ','listinghub'),

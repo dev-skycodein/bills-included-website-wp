@@ -165,7 +165,7 @@
 	<div class="row"> 
 				<label class="col-md-12" style="margin-bottom: 10px !important;">
 				<input type="checkbox"  name="check_marketing" id="check_terms">
-				Email marketing opt-in
+				I would like to be kept up to date with latest Bills included content and features. You can opt out anytime
 			</label>
 	</div>
 	<?php

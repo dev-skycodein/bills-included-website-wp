@@ -57,21 +57,8 @@
 					<div class="  "> 
 						<input type="text" class="form-control" name="title" id="title" value="" placeholder="<?php  esc_html_e('Enter Title Here','listinghub'); ?>">
 					</div>																		
-				</div>	
-				<?php
-					$listinghub_active_chatGPT=get_option('listinghub_active_chatGPT');		
-					if($listinghub_active_chatGPT==""){$listinghub_active_chatGPT='yes';}	
-					if($listinghub_active_chatGPT=="yes"){
-					?>
-					<div class="row">
-						<div class="col-md-12 "> <hr/>											
-							<button type="button" onclick="listinghub_chatgtp_settings_popup();"  class="btn green-haze mt-2 mb-2"><?php  esc_html_e('Create Post Using ChatGPT ',	'listinghub'); ?></button>	
-							<div id="chatgpt-message"></div>
-						</div>						
-					</div>	
-					<?php
-					}
-					?>
+				</div>
+				<br><br>	
 				<input type="hidden" name="feature_image_id" id="feature_image_id" value="">
 				
 				<div class=" form-group row">	
@@ -82,7 +69,7 @@
 							<button type="button" onclick="listinghub_edit_post_image('post_image_div');"  class="btn btn-small-ar"><?php  esc_html_e('Company Logo[best fit 450X350]','listinghub'); ?> </button>
 						</div>									
 				</div>
-				
+				<br>
 				<div class=" form-group row">																
 					<div class=" col-md-6" id="post_image_topbaner">
 					</div> 

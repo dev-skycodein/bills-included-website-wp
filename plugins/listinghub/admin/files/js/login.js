@@ -57,7 +57,7 @@ function  listinghub_chack_login(){
 				// 			location.reload(true);
 				// 		}, 6000);
 						const url = new URL(window.location.href);
-						url.searchParams.set('profile', 'dashboard');
+						url.searchParams.set('profile', 'setting');
 						window.location.href = url.toString();
 
 						}else{

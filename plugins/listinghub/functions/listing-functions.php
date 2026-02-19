@@ -1,8 +1,3 @@
-
-
-
-
-
 <?php
 	
 if (!function_exists('listinghub_get_icon')) {	
@@ -468,10 +463,60 @@ if (!function_exists('listinghub_get_search_args')) {
 			$search_arg['meta_query'] = $meta_query;
 		}
 		else{
-			$search_arg['meta_query'] = array(
-				'relation' => 'AND',
-				$other_field_mq,
+			$search_arg['meta_query'] = array_merge(
+				array( 'relation' => 'AND' ),
+				$other_field_mq
 			);
+		}
+		// Price range filter based on search_price meta
+		$min_price = isset($_REQUEST[$field_prefix.'search_price_min']) ? intval($_REQUEST[$field_prefix.'search_price_min']) : 0;
+		$max_price = isset($_REQUEST[$field_prefix.'search_price_max']) ? intval($_REQUEST[$field_prefix.'search_price_max']) : 0;
+
+		if ($min_price || $max_price) {
+			if ($min_price && $max_price && $min_price > $max_price) {
+				$tmp = $min_price;
+				$min_price = $max_price;
+				$max_price = $tmp;
+			}
+
+			$price_clause = array(
+				'key'  => 'search_price',
+				'type' => 'NUMERIC',
+			);
+
+			if ($min_price && $max_price) {
+				$price_clause['value']   = array($min_price, $max_price);
+				$price_clause['compare'] = 'BETWEEN';
+			} elseif ($min_price) {
+				$price_clause['value']   = $min_price;
+				$price_clause['compare'] = '>=';
+			} else {
+				$price_clause['value']   = $max_price;
+				$price_clause['compare'] = '<=';
+			}
+
+			if (isset($search_arg['meta_query']) && is_array($search_arg['meta_query'])) {
+				// If current meta_query is an OR group (from input-search), wrap it with AND and append price
+				if (isset($search_arg['meta_query']['relation']) && $search_arg['meta_query']['relation'] === 'OR') {
+					$existing_meta = $search_arg['meta_query'];
+					$search_arg['meta_query'] = array(
+						'relation' => 'AND',
+						$existing_meta,
+						$price_clause,
+					);
+				} else {
+					// Ensure relation exists then append price clause
+					if (!isset($search_arg['meta_query']['relation'])) {
+						$search_arg['meta_query']['relation'] = 'AND';
+					}
+					$search_arg['meta_query'][] = $price_clause;
+				}
+			} else {
+				$search_arg['meta_query'] = array(
+					'relation' => 'AND',
+					$price_clause,
+				);
+			}
 		}
 		if(isset($_REQUEST['latitude']) AND $_REQUEST['latitude']!=''){
 			$search_arg['lat']=$_REQUEST['latitude'];

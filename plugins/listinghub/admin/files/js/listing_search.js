@@ -1,4 +1,8 @@
-"use strict";
+
+
+ 
+    
+    "use strict";
 var ajaxurl = search_data.ajaxurl;
 var loader_image = search_data.loading_image;
 var neartome = search_data.neartome;
