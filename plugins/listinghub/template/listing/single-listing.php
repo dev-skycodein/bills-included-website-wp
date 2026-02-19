@@ -147,21 +147,13 @@
 			?>
 			<div class="row mt-2">
 				<div class="col-lg-7 col-md-12 mb-2">					
-					<?php			
-					if(array_key_exists('title',$active_single_fields_saved)){ 	
-						$saved_icon= listinghub_get_icon($single_page_icon_saved, 'title' ,'single');
+					<?php
+					if (array_key_exists('title', $active_single_fields_saved)) {
+						$saved_icon = listinghub_get_icon($single_page_icon_saved, 'title', 'single');
 					?>
 					<h2 class="title-detail "><i class="<?php echo esc_html($saved_icon); ?> "></i> <?php echo get_the_title($listingid); ?>
-					<?php			
-					if(array_key_exists('open_status',$active_single_fields_saved)){ 
-						$openStatus = listinghub_check_time($listingid);
-					?>	
-					<span class="card-time ml-3"><?php
-						$saved_icon= listinghub_get_icon($single_page_icon_saved,'open_status', 'single');
-						?><i class=" <?php echo esc_html($saved_icon); ?>   <?php echo($openStatus=='Open Now'?" open-green":' close-red') ?>"></i><strong class="small-heading  <?php echo($openStatus=='Open Now'?" open-green":' close-red') ?>"><?php echo esc_html($openStatus) ; ?></strong>
-					</span>		
 					<?php
-						}
+					// Open/close status badge removed per client request.
 					?>
 					</h2>
 					<?php
@@ -376,9 +368,37 @@
 												<span class="card-location mt-2"><i class="fa-solid fa-location-dot mr-2"></i><?php echo esc_html($company_locations); ?></span>
 												<?php
 												}
-												$total_listings = $main_class->listinghub_total_listing_count( $user_info->ID, $allusers = 'no' );
+
 												$agency_post_id = (int) get_post_meta( $listingid, 'agency_post_id', true );
 												$agency_owner   = $agency_post_id ? (int) get_post_meta( $agency_post_id, 'agency_owner', true ) : 0;
+
+												// Count listings differently when this listing is tied to an unclaimed agency.
+												if ( $agency_post_id ) {
+													$listinghub_directory_url = get_option( 'ep_listinghub_url' );
+													if ( $listinghub_directory_url === '' ) {
+														$listinghub_directory_url = 'listing';
+													}
+
+													$agency_listings_query = new WP_Query(
+														array(
+															'post_type'      => $listinghub_directory_url,
+															'post_status'    => 'publish',
+															'posts_per_page' => 99999,
+															'meta_query'     => array(
+																array(
+																	'key'     => 'agency_post_id',
+																	'value'   => $agency_post_id,
+																	'compare' => '=',
+																),
+															),
+														)
+													);
+
+													$total_listings = (int) $agency_listings_query->found_posts;
+												} else {
+													// Fallback: total listings authored by this user (existing behaviour).
+													$total_listings = $main_class->listinghub_total_listing_count( $user_info->ID, $allusers = 'no' );
+												}
 												?>
 										</div>
 										
