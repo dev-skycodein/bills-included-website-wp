@@ -1,6 +1,12 @@
 Claim my Agency
 
-[] when claim is approved the agent is assigned to agency package but due to no subscription created the payment status is pending. So he is reverted to basic role. only one listing to which he claimed for is assigned. 
+[] when claim is approved the agent is assigned to agency package but due to no subscription created the payment status is pending. So he is reverted to basic role. only one listing to which he claimed for is assigned. (implemented but need to verify)
+
+[] Agency logo is a purple house for now, and value is setting and fetching from single source truth. Can be edited by the Agent claimed that agnecy. the new image will also save on the same single source key. (implemented but need to verify)
+
+[] Thanks message on success popup after claim for the agencyis submitted. (implemented but need to verify)
+
+[] Data analytics storage. 
 
 Claim My Agency – implementation steps (high level)
 [✓] 1. Start Verification (front-end)

@@ -14,7 +14,9 @@ while ( have_posts() ) {
 	$agency_id   = get_the_ID();
 	$agency_name = get_the_title();
 	$agency_desc = get_the_content();
-	$logo_id     = get_post_thumbnail_id();
+	// Single source for logo – agency_logo (same key used by importer, edit form, and listing sidebar).
+	$agency_logo_url = get_post_meta( $agency_id, 'agency_logo', true );
+	$agency_logo_url = is_string( $agency_logo_url ) ? trim( $agency_logo_url ) : '';
 	$email       = get_post_meta( $agency_id, 'agency_email', true );
 	$phone       = get_post_meta( $agency_id, 'agency_phone', true );
 	$website     = get_post_meta( $agency_id, 'agency_website', true );
@@ -29,8 +31,10 @@ while ( have_posts() ) {
 				<!-- Heading + intro -->
 				<div class="col-lg-8 mb-4 mb-lg-0">
 					<header class="agency-header">
-						<?php if ( $logo_id ) : ?>
-							<div class="agency-logo mb-3"><?php the_post_thumbnail( 'medium', array( 'class' => 'rounded shadow-sm' ) ); ?></div>
+						<?php if ( $agency_logo_url ) : ?>
+							<div class="agency-logo mb-3">
+								<img src="<?php echo esc_url( $agency_logo_url ); ?>" alt="" class="rounded shadow-sm" style="max-width: 100%; height: auto;">
+							</div>
 						<?php endif; ?>
 						<h1 class="agency-title mb-2"><?php echo esc_html( $agency_name ); ?></h1>
 						<?php if ( $agency_desc ) : ?>

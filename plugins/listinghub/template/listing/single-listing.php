@@ -114,7 +114,16 @@
 			$company_web=get_user_meta($author_id,'website', true);
 			$company_phone=get_user_meta($author_id,'phone', true);
 			$company_logo=get_user_meta($author_id, 'listinghub_profile_pic_thum',true);
-	}	
+	}
+
+	// When listing is tied to an agency, logo comes from single source: agency_logo (agency post meta).
+	$agency_post_id_for_logo = (int) get_post_meta( $listingid, 'agency_post_id', true );
+	if ( $agency_post_id_for_logo ) {
+		$agency_logo_url = get_post_meta( $agency_post_id_for_logo, 'agency_logo', true );
+		if ( is_string( $agency_logo_url ) && trim( $agency_logo_url ) !== '' ) {
+			$company_logo = trim( $agency_logo_url );
+		}
+	}
 		
 ?>
 <!-- SLIDER SECTION -->
@@ -248,17 +257,45 @@
 										continue;
 									}
 									switch ($field_key) {																
-										case "description": 
+										case "description":
+										$is_scraped_listing = (int) get_post_meta( $listingid, 'agency_post_id', true ) > 0;
 									?>									
 									<div id="section-description" class="border-bottom pb-15 mb-3 mt-3 toptitle"><i class="<?php echo esc_html($saved_icon); ?>"></i> <?php esc_html_e('Description','listinghub'); ?></div>
 									<div class=" none  mb-4">
 										<?php
-										
-											$content_post = get_post($listingid);
-											$content = $content_post->post_content;
-											$content = apply_filters('the_content', $content);
-											$content = str_replace(']]>', ']]&gt;', $content);
-											echo wpautop($content);
+										$content_post = get_post($listingid);
+										$raw_content  = $content_post ? $content_post->post_content : '';
+
+										if ( $is_scraped_listing && trim( (string) $raw_content ) !== '' ) {
+											$text = wp_strip_all_tags( $raw_content );
+											$length = function_exists( 'mb_strlen' ) ? mb_strlen( $text ) : strlen( $text );
+											$half   = (int) floor( $length / 2 );
+											if ( $half > 0 ) {
+												if ( function_exists( 'mb_substr' ) && function_exists( 'mb_strrpos' ) ) {
+													$before_half = mb_substr( $text, 0, $half );
+													$cut_pos     = mb_strrpos( $before_half, ' ' );
+													$summary     = $cut_pos !== false ? mb_substr( $text, 0, $cut_pos ) : mb_substr( $text, 0, $half );
+												} else {
+													$before_half = substr( $text, 0, $half );
+													$cut_pos     = strrpos( $before_half, ' ' );
+													$summary     = $cut_pos !== false ? substr( $text, 0, $cut_pos ) : substr( $text, 0, $half );
+												}
+											} else {
+												$summary = $text;
+											}
+											$summary       = trim( $summary );
+											$source_url    = get_post_meta( $listingid, 'source_listing_url', true );
+											echo '<p>' . esc_html( $summary ) . '</p>';
+											if ( ! empty( $source_url ) ) {
+												echo '<p><a href="' . esc_url( $source_url ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'See full description on original listing', 'listinghub' ) . '</a></p>';
+											} else {
+												echo '<p>' . esc_html__( 'See full description on original listing', 'listinghub' ) . '</p>';
+											}
+										} else {
+											$content = apply_filters( 'the_content', $raw_content );
+											$content = str_replace( ']]>', ']]&gt;', $content );
+											echo wpautop( $content );
+										}
 										?>												
 									</div>
 									<?php											

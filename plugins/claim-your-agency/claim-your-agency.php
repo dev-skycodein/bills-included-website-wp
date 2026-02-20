@@ -364,6 +364,12 @@ function cya_on_approve_link_user_and_agency( $claim_id ) {
 	}
 	update_user_meta( $user_id, 'listinghub_package_id', $package_id );
 
+	// ListingHub treats 'pending' payment status or past expire date as reason to revert to Basic.
+	// Claim-approved users have no subscription; set success + far-future expire so they keep Agency perks.
+	update_user_meta( $user_id, 'listinghub_payment_status', 'success' );
+	$expire_date = date( 'Y-m-d', strtotime( '+50 years' ) );
+	update_user_meta( $user_id, 'listinghub_exprie_date', $expire_date );
+
 	// Set agency owner on the agency profile (gsli_agency).
 	update_post_meta( $agency_post_id, 'agency_owner', $user_id );
 
@@ -1276,8 +1282,15 @@ function cya_render_agency_edit_profile() {
 	$address = get_post_meta( $agency_post_id, 'agency_address', true );
 	$city    = get_post_meta( $agency_post_id, 'agency_city', true );
 
+	// Logo: single source – agency_logo (agency post meta). Used everywhere (sidebar, agency page, edit form).
+	$logo_url           = get_post_meta( $agency_post_id, 'agency_logo', true );
+	$logo_url           = is_string( $logo_url ) ? trim( $logo_url ) : '';
+	$logo_attachment_id = 0;
+
 	$ajax_url = admin_url( 'admin-ajax.php' );
 	$nonce    = wp_create_nonce( 'cya_claim_nonce' );
+
+	wp_enqueue_media();
 	ob_start();
 	?>
 	<style>
@@ -1318,6 +1331,21 @@ function cya_render_agency_edit_profile() {
 		}
 		.cya-edit-profile-wrap #cya-agency-edit-msg.notice-success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
 		.cya-edit-profile-wrap #cya-agency-edit-msg.notice-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+		.cya-edit-profile-wrap .cya-logo-preview-wrap {
+			display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;
+		}
+		.cya-edit-profile-wrap .cya-logo-preview-wrap img {
+			width: 96px; height: 96px; object-fit: contain; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;
+		}
+		.cya-edit-profile-wrap .cya-logo-preview-placeholder {
+			width: 96px; height: 96px; display: flex; align-items: center; justify-content: center;
+			border: 1px dashed #d1d5db; border-radius: 8px; background: #f9fafb; color: #6b7280; font-size: 0.8125rem;
+		}
+		.cya-edit-profile-wrap .cya-logo-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+		.cya-edit-profile-wrap .cya-btn-upload, .cya-edit-profile-wrap .cya-btn-remove-logo {
+			padding: 0.45rem 0.9rem; font-size: 0.875rem; border-radius: 6px; cursor: pointer; border: 1px solid #d1d5db; background: #fff; color: #374151;
+		}
+		.cya-edit-profile-wrap .cya-btn-upload:hover, .cya-edit-profile-wrap .cya-btn-remove-logo:hover { background: #f3f4f6; }
 	</style>
 	<div class="cya-edit-profile-wrap">
 		<h2 class="cya-edit-heading"><?php esc_html_e( 'Edit agency profile', 'claim-your-agency' ); ?></h2>
@@ -1327,6 +1355,18 @@ function cya_render_agency_edit_profile() {
 			<div class="cya-field">
 				<label for="cya-agency-title"><?php esc_html_e( 'Agency name', 'claim-your-agency' ); ?></label>
 				<input type="text" id="cya-agency-title" name="agency_title" value="<?php echo esc_attr( $title ); ?>">
+			</div>
+			<div class="cya-field">
+				<label><?php esc_html_e( 'Company logo', 'claim-your-agency' ); ?></label>
+				<input type="hidden" name="company_logo_attachment_id" id="cya-company-logo-id" value="<?php echo esc_attr( (string) $logo_attachment_id ); ?>">
+				<div class="cya-logo-preview-wrap">
+					<div class="cya-logo-preview-placeholder" id="cya-logo-preview-placeholder" style="<?php echo $logo_url ? 'display:none;' : ''; ?>"><?php esc_html_e( 'No logo', 'claim-your-agency' ); ?></div>
+					<img id="cya-logo-preview-img" src="<?php echo $logo_url ? esc_url( $logo_url ) : ''; ?>" alt="" style="<?php echo $logo_url ? '' : 'display:none;'; ?>">
+					<div class="cya-logo-actions">
+						<button type="button" class="cya-btn-upload" id="cya-logo-upload-btn"><?php esc_html_e( 'Upload / Change', 'claim-your-agency' ); ?></button>
+						<button type="button" class="cya-btn-remove-logo" id="cya-logo-remove-btn" style="<?php echo $logo_url ? '' : 'display:none;'; ?>"><?php esc_html_e( 'Remove', 'claim-your-agency' ); ?></button>
+					</div>
+				</div>
 			</div>
 			<div class="cya-field">
 				<label for="cya-agency-website"><?php esc_html_e( 'Website', 'claim-your-agency' ); ?></label>
@@ -1385,6 +1425,46 @@ function cya_render_agency_edit_profile() {
 						if (btn) btn.disabled = false;
 					});
 			});
+
+			// Company logo: open media library and update preview (run after load so wp.media is available).
+			var logoIdInput = document.getElementById('cya-company-logo-id');
+			var logoPreviewImg = document.getElementById('cya-logo-preview-img');
+			var logoPlaceholder = document.getElementById('cya-logo-preview-placeholder');
+			var logoRemoveBtn = document.getElementById('cya-logo-remove-btn');
+			var logoUploadBtn = document.getElementById('cya-logo-upload-btn');
+			function setLogoPreview(attachmentId, url) {
+				if (attachmentId && url) {
+					logoIdInput.value = attachmentId;
+					logoPreviewImg.src = url;
+					logoPreviewImg.style.display = '';
+					if (logoPlaceholder) logoPlaceholder.style.display = 'none';
+					if (logoRemoveBtn) logoRemoveBtn.style.display = '';
+				} else {
+					logoIdInput.value = '';
+					logoPreviewImg.src = '';
+					logoPreviewImg.style.display = 'none';
+					if (logoPlaceholder) logoPlaceholder.style.display = 'flex';
+					if (logoRemoveBtn) logoRemoveBtn.style.display = 'none';
+				}
+			}
+			function initLogoUpload() {
+				if (logoRemoveBtn) logoRemoveBtn.addEventListener('click', function() { setLogoPreview(null, null); });
+				if (!logoUploadBtn || typeof wp === 'undefined' || !wp.media) return;
+				logoUploadBtn.addEventListener('click', function() {
+					var frame = wp.media({ library: { type: 'image' }, multiple: false });
+					frame.on('select', function() {
+						var att = frame.state().get('selection').first().toJSON();
+						var url = att.sizes && att.sizes.medium ? att.sizes.medium.url : att.url;
+						setLogoPreview(String(att.id), url);
+					});
+					frame.open();
+				});
+			}
+			if (document.readyState === 'complete') {
+				initLogoUpload();
+			} else {
+				window.addEventListener('load', initLogoUpload);
+			}
 		})();
 	</script>
 	<?php
@@ -1425,12 +1505,25 @@ function cya_agency_update_profile() {
 	$address = isset( $_POST['agency_address'] ) ? sanitize_text_field( wp_unslash( $_POST['agency_address'] ) ) : '';
 	$city    = isset( $_POST['agency_city'] ) ? sanitize_text_field( wp_unslash( $_POST['agency_city'] ) ) : '';
 
+	$logo_attachment_id = isset( $_POST['company_logo_attachment_id'] ) ? (int) $_POST['company_logo_attachment_id'] : 0;
+
 	wp_update_post( array( 'ID' => $agency_post_id, 'post_title' => $title ) );
 	update_post_meta( $agency_post_id, 'agency_website', $website );
 	update_post_meta( $agency_post_id, 'agency_email', $email );
 	update_post_meta( $agency_post_id, 'agency_phone', $phone );
 	update_post_meta( $agency_post_id, 'agency_address', $address );
 	update_post_meta( $agency_post_id, 'agency_city', $city );
+
+	// Logo: single source – agency_logo only (no thumbnail). Saves to one key used everywhere.
+	if ( $logo_attachment_id > 0 ) {
+		$attach_post = get_post( $logo_attachment_id );
+		if ( $attach_post && wp_attachment_is_image( $logo_attachment_id ) ) {
+			$logo_url = wp_get_attachment_image_url( $logo_attachment_id, 'full' );
+			update_post_meta( $agency_post_id, 'agency_logo', $logo_url ? $logo_url : '' );
+		}
+	} else {
+		update_post_meta( $agency_post_id, 'agency_logo', '' );
+	}
 
 	wp_send_json_success( array( 'message' => __( 'Profile saved.', 'claim-your-agency' ) ) );
 }
@@ -2067,7 +2160,7 @@ function cya_output_claim_popup_js() {
 										cyaForm.style.display = 'none';
 									}
 									if (cyaSuccess && cyaSuccessTxt) {
-										cyaSuccessTxt.textContent = json.data && json.data.message ? json.data.message : '<?php echo esc_js( __( 'Your claim has been submitted. Please check your email for the next steps.', 'claim-your-agency' ) ); ?>';
+										cyaSuccessTxt.textContent = json.data && json.data.message ? json.data.message : '<?php echo esc_js( __( "Thanks, we've received your request. You can start the process by clicking the email we have sent you, please check your spam. Once you have completed the form, you should have access to your listings. Otherwise, feel free to email us.", 'claim-your-agency' ) ); ?>';
 										cyaSuccess.style.display = 'block';
 									}
 								})
@@ -2323,7 +2416,7 @@ function cya_submit_claim() {
 
 	wp_send_json_success(
 		array(
-			'message'        => __( 'Your claim has been submitted. Please check your email after we start verification.', 'claim-your-agency' ),
+			'message'        => __( "Thanks, we've received your request. You can start the process by clicking the email we have sent you, please check your spam. Once you have completed the form, you should have access to your listings. Otherwise, feel free to email us.", 'claim-your-agency' ),
 			'agency_name'    => $agency_name,
 			'agency_website' => $agency_website,
 			'claim_id'       => $claim_id,

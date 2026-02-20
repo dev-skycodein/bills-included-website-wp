@@ -1,3 +1,4 @@
 [] Add pagination to the table on admins page showing all the listings added using scraping. 
-[] Fetch the google sheet data using the google serivce API account. 
+[✓] Fetch the google sheet data using the google serivce API account. 
 [] All the image downloads will go through it. So implement proxies for this.
+[✓] Add the source url of the listing by clipping the description which will take the viewer to orginal listing. 

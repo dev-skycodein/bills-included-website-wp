@@ -87,7 +87,16 @@
 			$company_web=get_user_meta($author_id,'website', true);
 			$company_phone=get_user_meta($author_id,'phone', true);
 			$company_logo=get_user_meta($author_id, 'listinghub_profile_pic_thum',true);
-	}	
+	}
+
+	// When listing is tied to an agency, logo comes from single source: agency_logo (agency post meta).
+	$agency_post_id_for_logo = (int) get_post_meta( $listingid, 'agency_post_id', true );
+	if ( $agency_post_id_for_logo ) {
+		$agency_logo_url = get_post_meta( $agency_post_id_for_logo, 'agency_logo', true );
+		if ( is_string( $agency_logo_url ) && trim( $agency_logo_url ) !== '' ) {
+			$company_logo = trim( $agency_logo_url );
+		}
+	}
 		
 ?>
 <!-- SLIDER SECTION -->
