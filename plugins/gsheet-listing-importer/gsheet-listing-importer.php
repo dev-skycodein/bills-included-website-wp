@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: GSheet Listing Importer
- * Description: Imports listings from a Google Sheet (service account) or secure endpoint and creates/updates ListingHub listings.
+ * Description: Imports listings from a Google Sheet (service account) and creates/updates ListingHub listings.
  * Version: 1.0.0
  * Author: Brainscop
  */
@@ -13,17 +13,18 @@ if (!defined('ABSPATH')) {
 const GSLI_SETTINGS_GROUP = 'gsli_settings';
 const GSLI_IMAGE_ONLY_TEST = false;
 // When true: only log counts and per-sheet row counts; do not create or update any posts. Set to false when testing is done.
-const GSLI_DRY_RUN_IMPORT = true;
+const GSLI_DRY_RUN_IMPORT = false;
 // Prevent overlapping image batch runs (seconds).
 const GSLI_IMAGE_BATCH_LOCK_TTL = 600;
 // Throttle between image downloads/uploads (microseconds).
 const GSLI_IMAGE_THROTTLE_USLEEP = 250000;
+// Default logo for all agencies and listings (company logo).
+const GSLI_DEFAULT_AGENCY_LOGO = 'https://thebillsincluded.com/wp-content/uploads/2026/02/purple-house-clipart.jpg';
 const GSLI_OPTION_SHEET_ID = 'gsli_sheet_id';
 const GSLI_OPTION_SHEET_GID = 'gsli_sheet_gid';
 const GSLI_OPTION_SHEET_GIDS = 'gsli_sheet_gids';
 const GSLI_OPTION_SERVICE_ACCOUNT_JSON = 'gsli_service_account_json';
-const GSLI_OPTION_ENDPOINT_URL = 'gsli_endpoint_url';
-const GSLI_OPTION_ENDPOINT_TOKEN = 'gsli_endpoint_token';
+const GSLI_OPTION_CRON_TOKEN = 'gsli_cron_token';
 /** Default filename for service account JSON when option is empty (relative to plugin dir). */
 const GSLI_DEFAULT_SERVICE_ACCOUNT_JSON = 'bills-included-scraping-0fcadb7076ac.json';
 
@@ -33,6 +34,8 @@ add_action('admin_post_gsli_import', 'gsli_handle_import');
 add_action('admin_post_gsli_stop_queue', 'gsli_handle_stop_queue');
 add_action('admin_post_gsli_delete_listings', 'gsli_handle_delete_listings');
 add_action('gsli_process_images_batch', 'gsli_process_images_batch');
+add_action('gsli_run_import', 'gsli_cron_run_import');
+add_action('init', 'gsli_maybe_run_cron_url', 1);
 
 add_filter('cron_schedules', 'gsli_add_cron_schedules');
 add_action('init', 'gsli_register_queue_post_type');
@@ -44,6 +47,25 @@ function gsli_get_log_dir() {
 	return plugin_dir_path(__FILE__) . 'logs' . DIRECTORY_SEPARATOR;
 }
 
+/**
+ * Human-readable server date and datetime (for display and logs).
+ *
+ * @return array{date: string, datetime: string, timezone: string, utc: string}
+ */
+function gsli_server_datetime_strings() {
+	$tz = wp_timezone_string();
+	if ($tz === '') {
+		$tz = date_default_timezone_get();
+	}
+	$now = time();
+	return array(
+		'date'      => wp_date('l, j F Y', $now),
+		'datetime'  => wp_date('l, j F Y, H:i:s', $now),
+		'timezone'  => $tz,
+		'utc'       => gmdate('l, j F Y, H:i:s', $now) . ' UTC',
+	);
+}
+
 function gsli_init_log() {
 	$dir = gsli_get_log_dir();
 	if (!is_dir($dir)) {
@@ -52,6 +74,8 @@ function gsli_init_log() {
 	$filename = 'import-' . gmdate('Ymd-His') . '-' . wp_generate_password(6, false, false) . '.log';
 	$GLOBALS['gsli_log_file'] = $dir . $filename;
 	gsli_log('Import started.');
+	$dt = gsli_server_datetime_strings();
+	gsli_log('Server datetime.', array('datetime' => $dt['datetime'], 'timezone' => $dt['timezone'], 'utc' => $dt['utc']));
 	return $filename;
 }
 
@@ -78,6 +102,47 @@ function gsli_add_cron_schedules($schedules) {
 	return $schedules;
 }
 
+/**
+ * Handle system-cron URLs: ?gsli_cron=import|images&token=SECRET
+ * Does not rely on WordPress cron; call these URLs from system cron (e.g. crontab) on your schedule.
+ */
+function gsli_maybe_run_cron_url() {
+	$action = isset($_GET['gsli_cron']) ? sanitize_text_field(wp_unslash($_GET['gsli_cron'])) : '';
+	if ($action === '') {
+		return;
+	}
+
+	$token = get_option(GSLI_OPTION_CRON_TOKEN, '');
+	if ($token === '' || !isset($_GET['token']) || !hash_equals($token, sanitize_text_field(wp_unslash($_GET['token'])))) {
+		status_header(403);
+		wp_send_json(array('ok' => false, 'error' => 'Invalid or missing cron token.'), 403);
+	}
+
+	if ($action === 'import') {
+		gsli_init_log();
+		$result = gsli_do_import(false);
+		if (is_wp_error($result)) {
+			status_header(500);
+			wp_send_json(array('ok' => false, 'error' => $result->get_error_message()), 500);
+		}
+		wp_send_json(array(
+			'ok'      => true,
+			'created' => $result['created'],
+			'updated' => $result['updated'],
+			'skipped' => $result['skipped'],
+		));
+	}
+
+	if ($action === 'images') {
+		gsli_init_log();
+		do_action('gsli_process_images_batch');
+		wp_send_json(array('ok' => true, 'message' => 'Image batch run completed.'));
+	}
+
+	status_header(400);
+	wp_send_json(array('ok' => false, 'error' => 'Unknown action. Use import or images.'), 400);
+}
+
 function gsli_register_queue_post_type() {
 	register_post_type('gsli_queue', array(
 		'label' => 'GSLI Queue',
@@ -102,6 +167,7 @@ function gsli_register_agency_post_type() {
 		),
 		'show_ui' => true,
 		'show_in_menu' => true,
+		'menu_position' => 57,
 		'supports' => array('title', 'editor', 'thumbnail'),
 	));
 }
@@ -166,12 +232,7 @@ function gsli_register_settings() {
 		'sanitize_callback' => 'sanitize_file_name',
 		'default' => '',
 	));
-	register_setting(GSLI_SETTINGS_GROUP, GSLI_OPTION_ENDPOINT_URL, array(
-		'type' => 'string',
-		'sanitize_callback' => 'esc_url_raw',
-		'default' => '',
-	));
-	register_setting(GSLI_SETTINGS_GROUP, GSLI_OPTION_ENDPOINT_TOKEN, array(
+	register_setting(GSLI_SETTINGS_GROUP, GSLI_OPTION_CRON_TOKEN, array(
 		'type' => 'string',
 		'sanitize_callback' => 'sanitize_text_field',
 		'default' => '',
@@ -187,8 +248,7 @@ function gsli_render_admin_page() {
 	$sheet_gid = get_option(GSLI_OPTION_SHEET_GID, '0');
 	$sheet_gids = get_option(GSLI_OPTION_SHEET_GIDS, '');
 	$service_account_json = get_option(GSLI_OPTION_SERVICE_ACCOUNT_JSON, '');
-	$endpoint_url = get_option(GSLI_OPTION_ENDPOINT_URL, '');
-	$endpoint_token = get_option(GSLI_OPTION_ENDPOINT_TOKEN, '');
+	$cron_token = get_option(GSLI_OPTION_CRON_TOKEN, '');
 	$json_path = gsli_get_service_account_json_path();
 
 	$import_result = isset($_GET['gsli_import']) ? sanitize_text_field(wp_unslash($_GET['gsli_import'])) : '';
@@ -200,9 +260,11 @@ function gsli_render_admin_page() {
 	$dry_run = isset($_GET['dry_run']) && $_GET['dry_run'] === '1';
 	$delete_result = isset($_GET['gsli_deleted']) ? (int) $_GET['gsli_deleted'] : 0;
 
+	$server_dt = gsli_server_datetime_strings();
 	?>
 	<div class="wrap">
 		<h1>GSheet Listing Importer</h1>
+		<p class="description" style="margin-bottom:16px;"><strong>Server time:</strong> <?php echo esc_html($server_dt['datetime']); ?> — Timezone: <?php echo esc_html($server_dt['timezone']); ?> | <strong>UTC:</strong> <?php echo esc_html($server_dt['utc']); ?></p>
 
 		<?php if ($import_result === 'success') : ?>
 			<div class="notice notice-success is-dismissible">
@@ -242,17 +304,17 @@ function gsli_render_admin_page() {
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="gsli_sheet_gids">All sheet GIDs (comma-separated)</label></th>
+					<th scope="row"><label for="gsli_sheet_gids">Sheet GIDs (optional)</label></th>
 					<td>
-						<input type="text" id="gsli_sheet_gids" name="<?php echo esc_attr(GSLI_OPTION_SHEET_GIDS); ?>" value="<?php echo esc_attr($sheet_gids); ?>" class="large-text" placeholder="0,1579133780,1511803448,..." />
-						<p class="description">Import from multiple tabs. Enter each tab's GID (from the sheet URL when you open that tab, e.g. #gid=0). First tab is usually 0.</p>
+						<input type="text" id="gsli_sheet_gids" name="<?php echo esc_attr(GSLI_OPTION_SHEET_GIDS); ?>" value="<?php echo esc_attr($sheet_gids); ?>" class="large-text" placeholder="Leave empty for all tabs" />
+						<p class="description">Leave empty to import from <strong>all tabs</strong> (first sheet, GID 0, is always skipped as intro/Welcome). Row 1 = header, rest = data. Or enter comma-separated GIDs to limit/reorder tabs.</p>
 					</td>
 				</tr>
 				<tr>
 					<th scope="row"><label for="gsli_service_account_json">Service account JSON filename</label></th>
 					<td>
 						<input type="text" id="gsli_service_account_json" name="<?php echo esc_attr(GSLI_OPTION_SERVICE_ACCOUNT_JSON); ?>" value="<?php echo esc_attr($service_account_json); ?>" class="regular-text" placeholder="<?php echo esc_attr(GSLI_DEFAULT_SERVICE_ACCOUNT_JSON); ?>" />
-						<p class="description">Filename of the service account JSON file in this plugin's directory (e.g. <?php echo esc_html(GSLI_DEFAULT_SERVICE_ACCOUNT_JSON); ?>). Share the Google Sheet with the service account email (Viewer). Leave empty to use default. Run <code>composer install</code> in the plugin folder if you see "Google API client not found".</p>
+						<p class="description">Filename of the service account JSON file in this plugin's directory (e.g. <?php echo esc_html(GSLI_DEFAULT_SERVICE_ACCOUNT_JSON); ?>). Share the Google Sheet with the service account email (Viewer). Leave empty to use default. No Composer or terminal required.</p>
 						<?php if ($json_path !== '' && !is_readable($json_path)) : ?>
 							<p class="description" style="color:#b32d2e;">File not found or not readable: <?php echo esc_html(basename($json_path)); ?></p>
 						<?php elseif ($json_path !== '') : ?>
@@ -261,19 +323,36 @@ function gsli_render_admin_page() {
 					</td>
 				</tr>
 				<tr>
-					<th scope="row"><label for="gsli_endpoint_url">Secure Endpoint URL (optional)</label></th>
+					<th scope="row"><label for="gsli_cron_token">System cron token</label></th>
 					<td>
-						<input type="url" id="gsli_endpoint_url" name="<?php echo esc_attr(GSLI_OPTION_ENDPOINT_URL); ?>" value="<?php echo esc_attr($endpoint_url); ?>" class="regular-text" />
-						<p class="description">If set, listings are fetched from this URL (JSON or CSV) instead of the Google Sheet.</p>
+						<input type="text" id="gsli_cron_token" name="<?php echo esc_attr(GSLI_OPTION_CRON_TOKEN); ?>" value="<?php echo esc_attr($cron_token); ?>" class="regular-text" autocomplete="off" placeholder="e.g. my-secret-token" />
+						<p class="description"><strong>Recommended.</strong> Set a secret token, then call the URLs below from <strong>system cron</strong> (crontab / Task Scheduler). Two processes: (1) <strong>Import</strong> – fetch sheet and create/update listings, queue images. (2) <strong>Images</strong> – process queued images in batches with intervals. Does not rely on WordPress cron or site visits.</p>
 					</td>
 				</tr>
+				<?php if ($cron_token !== '') :
+					$import_url = add_query_arg(array('gsli_cron' => 'import', 'token' => $cron_token), home_url('/'));
+					$images_url = add_query_arg(array('gsli_cron' => 'images', 'token' => $cron_token), home_url('/'));
+				?>
 				<tr>
-					<th scope="row"><label for="gsli_endpoint_token">Endpoint Token (optional)</label></th>
+					<th scope="row">System cron URLs</th>
 					<td>
-						<input type="text" id="gsli_endpoint_token" name="<?php echo esc_attr(GSLI_OPTION_ENDPOINT_TOKEN); ?>" value="<?php echo esc_attr($endpoint_token); ?>" class="regular-text" />
-						<p class="description">Sent as query param <code>token</code> and header <code>X-GSLI-Token</code>.</p>
+						<p class="description" style="margin-bottom:6px;"><strong>1. Import</strong> (e.g. daily) – run first to sync listings and queue images:</p>
+						<p><code style="word-break:break-all;"><?php echo esc_html($import_url); ?></code></p>
+						<p class="description" style="margin-bottom:6px;"><strong>2. Images</strong> (e.g. every 2 min) – run repeatedly to drain the image queue:</p>
+						<p><code style="word-break:break-all;"><?php echo esc_html($images_url); ?></code></p>
+						<p class="description">Example crontab: <code>0 3 * * * curl -s "IMPORT_URL"</code> (daily at 3am) and <code>*/2 * * * * curl -s "IMAGES_URL"</code> (every 2 min).</p>
+						<details style="margin-top:12px;">
+							<summary style="cursor:pointer;"><strong>Hostinger setup</strong></summary>
+							<ol style="margin:8px 0 0 18px; padding:0;">
+								<li>In Hostinger: <strong>Websites → your site → Cron Jobs</strong> (or search “Cron” in the dashboard).</li>
+								<li><strong>Job 1 – Import</strong>: Create a new cron job. Type: <strong>Custom</strong>. Command: <code>curl -s "<?php echo esc_html($import_url); ?>"</code>. Schedule: e.g. <strong>Once per day</strong> (or set time, e.g. 3:00 AM – Hostinger uses UTC). Save.</li>
+								<li><strong>Job 2 – Images</strong>: Create another cron job. Type: <strong>Custom</strong>. Command: <code>curl -s "<?php echo esc_html($images_url); ?>"</code>. Schedule: <strong>Every 2 minutes</strong> (or “Every 5 minutes” if you prefer). Save.</li>
+							</ol>
+							<p class="description" style="margin-top:8px;">If <code>curl</code> is not available, use <code>wget -q -O - "URL"</code> with the same URLs. You can check <strong>View output</strong> in the cron list to confirm runs.</p>
+						</details>
 					</td>
 				</tr>
+				<?php endif; ?>
 			</table>
 
 			<?php submit_button('Save Settings'); ?>
@@ -282,8 +361,8 @@ function gsli_render_admin_page() {
 		<hr />
 
 		<h2>Run Import</h2>
-		<p>Data is fetched via Google Sheets API (service account) or, if set, from the Secure Endpoint URL (JSON or CSV). Dry run is <?php echo GSLI_DRY_RUN_IMPORT ? 'on' : 'off'; ?> (see constant GSLI_DRY_RUN_IMPORT).</p>
-		<p>Required column: <code>title</code>. Optional: <code>content</code>, <code>excerpt</code>, <code>status</code>, <code>slug</code>, <code>listing_id</code>. All other columns are saved as post meta with matching keys.</p>
+		<p>Data is fetched via Google Sheets API (service account). Dry run is <?php echo GSLI_DRY_RUN_IMPORT ? 'on' : 'off'; ?> (see constant GSLI_DRY_RUN_IMPORT).</p>
+		<p>Required column: <code>title</code>. Optional: <code>content</code>, <code>excerpt</code>, <code>availability_status</code> (available / unavailable), <code>slug</code>, <code>listing_id</code>. All other columns are saved as post meta with matching keys.</p>
 		<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
 			<?php wp_nonce_field('gsli_import_action', 'gsli_import_nonce'); ?>
 			<input type="hidden" name="action" value="gsli_import" />
@@ -379,19 +458,21 @@ function gsli_render_admin_page() {
 	<?php
 }
 
-function gsli_handle_import() {
-	if (!current_user_can('manage_options')) {
-		wp_die('Unauthorized', 403);
-	}
-
-	check_admin_referer('gsli_import_action', 'gsli_import_nonce');
+/**
+ * Run the import (fetch sheet, validate, create/update listings).
+ * Call gsli_init_log() before this so logs are written. Used by manual import and by cron.
+ *
+ * @param bool|null $dry_run true = dry run only; false = real import (e.g. cron); null = use GSLI_DRY_RUN_IMPORT constant.
+ * @return array{created: int, updated: int, skipped: int, log_filename: string}|WP_Error
+ */
+function gsli_do_import($dry_run = null) {
 	$import_start = microtime(true);
-	$log_filename = gsli_init_log();
+	$log_filename = isset($GLOBALS['gsli_log_file']) ? basename($GLOBALS['gsli_log_file']) : '';
 
 	$source = gsli_fetch_source_rows();
 	if (is_wp_error($source)) {
 		gsli_log('Source fetch failed.', array('error' => $source->get_error_message()));
-		gsli_redirect_with_error($source->get_error_message());
+		return $source;
 	}
 
 	$rows = $source['rows'];
@@ -427,18 +508,36 @@ function gsli_handle_import() {
 			}
 		}
 		gsli_log('Missing title column.', array('headers' => $headers));
-		gsli_redirect_with_error($message, $log_filename);
+		return new WP_Error('gsli_no_title', $message);
 	}
 
 	$post_type = gsli_get_listing_post_type();
-
 	$created = 0;
 	$updated = 0;
 	$skipped = 0;
 
-	$dry_run = GSLI_DRY_RUN_IMPORT;
+	if ($dry_run === null) {
+		$dry_run = GSLI_DRY_RUN_IMPORT;
+	}
 	if ($dry_run) {
 		gsli_log('Dry run: no posts will be created or updated.', array());
+		gsli_log('Dry run data: headers.', array('headers' => $headers));
+		$sample_size = min(5, count($rows));
+		for ($i = 0; $i < $sample_size; $i++) {
+			$data = gsli_map_row($headers, $rows[$i]);
+			$truncated = array();
+			foreach ($data as $key => $val) {
+				if ($key === '') {
+					continue;
+				}
+				$s = wp_strip_all_tags((string) $val);
+				$truncated[$key] = strlen($s) > 80 ? substr($s, 0, 80) . '…' : $s;
+			}
+			gsli_log('Dry run data: row ' . ($i + 1) . '.', array('data' => $truncated));
+		}
+		if (count($rows) > $sample_size) {
+			gsli_log('Dry run data: ... and ' . (count($rows) - $sample_size) . ' more rows.', array());
+		}
 	}
 
 	foreach ($rows as $index => $row) {
@@ -468,11 +567,11 @@ function gsli_handle_import() {
 			continue;
 		}
 
-		$post_status = isset($data['status']) ? sanitize_key($data['status']) : 'publish';
-		if (!in_array($post_status, array('publish', 'draft', 'pending', 'private'), true)) {
-			$post_status = 'publish';
-		}
+		// Availability status: available → publish; unavailable or missing → draft.
+		$availability = strtolower(trim((string) (isset($data['availability_status']) ? $data['availability_status'] : '')));
+		$is_available = ($availability === 'available');
 
+		$post_status = $is_available ? 'publish' : 'draft';
 		$defer_publish = false;
 		if ($post_status === 'publish' && !empty($data['images'])) {
 			$post_status = 'draft';
@@ -480,20 +579,21 @@ function gsli_handle_import() {
 		}
 
 		$description = isset($data['description']) ? $data['description'] : '';
+		$excerpt_raw  = isset($data['excerpt']) ? sanitize_textarea_field($data['excerpt']) : '';
 
 		$postarr = array(
 			'post_title'   => $title,
 			'post_content' => gsli_format_rich_text($description),
-			'post_excerpt' => isset($data['excerpt']) ? sanitize_textarea_field($data['excerpt']) : '',
+			'post_excerpt' => $excerpt_raw,
 			'post_status'  => $post_status,
 			'post_type'    => $post_type,
 		);
-
 		if (!empty($data['slug'])) {
 			$postarr['post_name'] = sanitize_title($data['slug']);
 		}
 
 		$existing_id = gsli_find_existing_post_id($post_type, $data, $postarr);
+		$is_update = (bool) $existing_id;
 
 		if ($dry_run) {
 			if ($existing_id) {
@@ -507,8 +607,23 @@ function gsli_handle_import() {
 		}
 
 		if ($existing_id) {
-			$postarr['ID'] = $existing_id;
-			$result = wp_update_post($postarr, true);
+			// On update: set post_status from availability_status (available → publish; unavailable or missing → draft).
+			$update_arr = array(
+				'ID'          => $existing_id,
+				'post_type'   => $post_type,
+				'post_title'  => $title,
+				'post_status' => $is_available ? 'publish' : 'draft',
+			);
+			if (trim((string) $description) !== '') {
+				$update_arr['post_content'] = gsli_format_rich_text($description);
+			}
+			if (trim((string) $excerpt_raw) !== '') {
+				$update_arr['post_excerpt'] = $excerpt_raw;
+			}
+			if (!empty($data['slug'])) {
+				$update_arr['post_name'] = sanitize_title($data['slug']);
+			}
+			$result = wp_update_post($update_arr, true);
 			if (!is_wp_error($result)) {
 				$updated++;
 				gsli_log('Row updated.', array('row' => $index + 1, 'post_id' => $existing_id));
@@ -527,11 +642,11 @@ function gsli_handle_import() {
 		}
 
 		if ($existing_id && !is_wp_error($result)) {
-			gsli_apply_listinghub_mapping($existing_id, $data, $post_type);
-			if ($defer_publish) {
+			gsli_apply_listinghub_mapping($existing_id, $data, $post_type, $is_update);
+			if (!$is_update && $defer_publish) {
 				update_post_meta($existing_id, '_gsli_target_status', 'publish');
 				gsli_log('Listing set to draft pending images.', array('row' => $index + 1, 'post_id' => $existing_id));
-			} else {
+			} elseif (!$is_update) {
 				delete_post_meta($existing_id, '_gsli_target_status');
 			}
 		}
@@ -544,16 +659,54 @@ function gsli_handle_import() {
 	}
 	$import_duration = microtime(true) - $import_start;
 	gsli_log('Import duration.', array('seconds' => round($import_duration, 2)));
+
+	return array(
+		'created'       => $created,
+		'updated'       => $updated,
+		'skipped'       => $skipped,
+		'log_filename'  => $log_filename,
+		'dry_run'       => $dry_run,
+	);
+}
+
+function gsli_handle_import() {
+	if (!current_user_can('manage_options')) {
+		wp_die('Unauthorized', 403);
+	}
+	check_admin_referer('gsli_import_action', 'gsli_import_nonce');
+
+	gsli_init_log();
+	$result = gsli_do_import(null);
+
+	if (is_wp_error($result)) {
+		$log_filename = isset($GLOBALS['gsli_log_file']) ? basename($GLOBALS['gsli_log_file']) : '';
+		gsli_redirect_with_error($result->get_error_message(), $log_filename);
+	}
+
 	wp_safe_redirect(add_query_arg(array(
 		'page' => 'gsli-import',
 		'gsli_import' => 'success',
-		'created' => $created,
-		'updated' => $updated,
-		'skipped' => $skipped,
-		'log' => $log_filename,
-		'dry_run' => $dry_run ? '1' : '0',
+		'created' => $result['created'],
+		'updated' => $result['updated'],
+		'skipped' => $result['skipped'],
+		'log' => $result['log_filename'],
+		'dry_run' => $result['dry_run'] ? '1' : '0',
 	), admin_url('admin.php')));
 	exit;
+}
+
+/**
+ * Cron callback: run import (always real import, not dry run). Logs to plugin logs directory.
+ */
+function gsli_cron_run_import() {
+	gsli_init_log();
+	gsli_log('Auto import started (cron).', array());
+	$result = gsli_do_import(false);
+	if (is_wp_error($result)) {
+		gsli_log('Auto import failed.', array('error' => $result->get_error_message()));
+		return;
+	}
+	gsli_log('Auto import completed.', array('created' => $result['created'], 'updated' => $result['updated'], 'skipped' => $result['skipped']));
 }
 
 function gsli_handle_stop_queue() {
@@ -674,62 +827,194 @@ function gsli_get_service_account_json_path() {
 }
 
 function gsli_fetch_source_rows() {
-	$endpoint_url = get_option(GSLI_OPTION_ENDPOINT_URL, '');
-	if (!empty($endpoint_url)) {
-		return gsli_fetch_from_endpoint($endpoint_url);
-	}
-
 	$sheet_id = get_option(GSLI_OPTION_SHEET_ID, '');
 	$sheet_gids_raw = get_option(GSLI_OPTION_SHEET_GIDS, '');
 	$sheet_gids_trimmed = trim((string) $sheet_gids_raw);
 	$json_path = gsli_get_service_account_json_path();
 
-	if ($sheet_id === '' || $sheet_gids_trimmed === '') {
-		return new WP_Error('gsli_missing_source', 'Set Google Sheet ID and All sheet GIDs (comma-separated).');
+	if ($sheet_id === '') {
+		return new WP_Error('gsli_missing_source', 'Set Google Sheet ID.');
 	}
 	if ($json_path === '') {
-		return new WP_Error('gsli_missing_json', 'Service account JSON file not found. Place the JSON file in the plugin directory and set its filename in settings, or run composer install.');
+		return new WP_Error('gsli_missing_json', 'Service account JSON file not found. Place the JSON file in the plugin directory and set its filename in settings.');
 	}
 
 	return gsli_fetch_sheet_rows_via_api($sheet_id, $sheet_gids_trimmed, $json_path);
 }
 
 /**
+ * Get OAuth2 access token for Google service account (no Composer; plain PHP + wp_remote_*).
+ *
+ * @param string $credentials_path Full path to service account JSON file.
+ * @return string|WP_Error Access token or error.
+ */
+function gsli_gsa_get_access_token($credentials_path) {
+	$json = @file_get_contents($credentials_path);
+	if ($json === false) {
+		return new WP_Error('gsli_gsa_json', 'Could not read service account JSON.');
+	}
+	$creds = json_decode($json, true);
+	if (empty($creds['client_email']) || empty($creds['private_key'])) {
+		return new WP_Error('gsli_gsa_json', 'Invalid service account JSON (missing client_email or private_key).');
+	}
+
+	$now = time();
+	$payload = array(
+		'iss'   => $creds['client_email'],
+		'scope' => 'https://www.googleapis.com/auth/spreadsheets.readonly',
+		'aud'   => 'https://oauth2.googleapis.com/token',
+		'iat'   => $now,
+		'exp'   => $now + 3600,
+	);
+	$header = array('alg' => 'RS256', 'typ' => 'JWT');
+	$segments = array(
+		gsli_gsa_base64url_encode(wp_json_encode($header)),
+		gsli_gsa_base64url_encode(wp_json_encode($payload)),
+	);
+	$signature_input = implode('.', $segments);
+
+	$key = openssl_pkey_get_private($creds['private_key']);
+	if ($key === false) {
+		return new WP_Error('gsli_gsa_key', 'Invalid private key in service account JSON.');
+	}
+	$sig = '';
+	openssl_sign($signature_input, $sig, $key, OPENSSL_ALGO_SHA256);
+	openssl_free_key($key);
+
+	$segments[] = gsli_gsa_base64url_encode($sig);
+	$jwt = implode('.', $segments);
+
+	$response = wp_remote_post('https://oauth2.googleapis.com/token', array(
+		'timeout' => 15,
+		'headers' => array('Content-Type' => 'application/x-www-form-urlencoded'),
+		'body'   => array(
+			'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+			'assertion'  => $jwt,
+		),
+	));
+
+	if (is_wp_error($response)) {
+		return new WP_Error('gsli_gsa_token', 'Token request failed: ' . $response->get_error_message());
+	}
+	$code = wp_remote_retrieve_response_code($response);
+	$body = wp_remote_retrieve_body($response);
+	$data = json_decode($body, true);
+	if ((int) $code !== 200 || empty($data['access_token'])) {
+		$msg = isset($data['error_description']) ? $data['error_description'] : 'Status ' . $code;
+		return new WP_Error('gsli_gsa_token', 'Could not get access token: ' . $msg);
+	}
+	return $data['access_token'];
+}
+
+function gsli_gsa_base64url_encode($data) {
+	return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+}
+
+/**
+ * Fetch spreadsheet metadata (all tabs in order) via Sheets API.
+ *
+ * @param string $sheet_id Spreadsheet ID.
+ * @param string $access_token OAuth2 access token.
+ * @return array|WP_Error List of array('gid' => string, 'title' => string) in tab order.
+ */
+function gsli_gsa_sheets_get_metadata($sheet_id, $access_token) {
+	$url = 'https://sheets.googleapis.com/v4/spreadsheets/' . rawurlencode($sheet_id) . '?fields=sheets(properties(sheetId,title))';
+	$response = wp_remote_get($url, array(
+		'timeout' => 15,
+		'headers' => array('Authorization' => 'Bearer ' . $access_token),
+	));
+	if (is_wp_error($response)) {
+		return new WP_Error('gsli_sheets_meta', 'Metadata request failed: ' . $response->get_error_message());
+	}
+	$code = wp_remote_retrieve_response_code($response);
+	$body = wp_remote_retrieve_body($response);
+	$data = json_decode($body, true);
+	if ((int) $code !== 200) {
+		$msg = isset($data['error']['message']) ? $data['error']['message'] : 'Status ' . $code;
+		return new WP_Error('gsli_sheets_meta', $msg);
+	}
+	$ordered = array();
+	if (!empty($data['sheets'])) {
+		foreach ($data['sheets'] as $sheet) {
+			if (isset($sheet['properties']['sheetId'], $sheet['properties']['title'])) {
+				$ordered[] = array(
+					'gid'   => (string) $sheet['properties']['sheetId'],
+					'title' => $sheet['properties']['title'],
+				);
+			}
+		}
+	}
+	return $ordered;
+}
+
+/**
+ * Fetch sheet values for a range via Sheets API.
+ *
+ * @param string $sheet_id Spreadsheet ID.
+ * @param string $range A1 notation, e.g. 'Sheet1'!A:ZZ.
+ * @param string $access_token OAuth2 access token.
+ * @return array|WP_Error Array of rows (each row is array of cell values).
+ */
+function gsli_gsa_sheets_get_values($sheet_id, $range, $access_token) {
+	$url = 'https://sheets.googleapis.com/v4/spreadsheets/' . rawurlencode($sheet_id) . '/values/' . rawurlencode($range);
+	$response = wp_remote_get($url, array(
+		'timeout' => 15,
+		'headers' => array('Authorization' => 'Bearer ' . $access_token),
+	));
+	if (is_wp_error($response)) {
+		return new WP_Error('gsli_sheets_values', 'Values request failed: ' . $response->get_error_message());
+	}
+	$code = wp_remote_retrieve_response_code($response);
+	$body = wp_remote_retrieve_body($response);
+	$data = json_decode($body, true);
+	if ((int) $code !== 200) {
+		$msg = isset($data['error']['message']) ? $data['error']['message'] : 'Status ' . $code;
+		return new WP_Error('gsli_sheets_values', $msg);
+	}
+	return isset($data['values']) ? $data['values'] : array();
+}
+
+/**
  * Fetch and merge rows from multiple sheet tabs via Google Sheets API (service account).
+ * Uses plain PHP and wp_remote_* only — no Composer required.
+ * When $sheet_gids_comma is empty, imports from all tabs in the spreadsheet (in order).
  *
  * @param string $sheet_id Google Spreadsheet ID.
- * @param string $sheet_gids_comma Comma-separated list of sheet GIDs (tab ids).
+ * @param string $sheet_gids_comma Optional comma-separated GIDs to limit/reorder tabs; empty = all tabs.
  * @param string $credentials_path Full path to service account JSON file.
  * @return array{headers: array, rows: array}|WP_Error
  */
 function gsli_fetch_sheet_rows_via_api($sheet_id, $sheet_gids_comma, $credentials_path) {
-	$autoload = plugin_dir_path(__FILE__) . 'vendor/autoload.php';
-	if (!is_file($autoload) || !is_readable($autoload)) {
-		return new WP_Error('gsli_no_client', 'Google API client not found. Run "composer install" in the plugin directory.');
+	$token = gsli_gsa_get_access_token($credentials_path);
+	if (is_wp_error($token)) {
+		return $token;
 	}
 
-	require_once $autoload;
+	$metadata = gsli_gsa_sheets_get_metadata($sheet_id, $token);
+	if (is_wp_error($metadata)) {
+		return $metadata;
+	}
 
-	$client = new \Google\Client();
-	$client->setAuthConfig($credentials_path);
-	$client->addScope(\Google\Service\Sheets::SPREADSHEETS_READONLY);
-
-	$service = new \Google\Service\Sheets($client);
-
-	// Get sheet metadata: sheetId (gid) -> title.
-	$spreadsheet = $service->spreadsheets->get($sheet_id, array('fields' => 'sheets(properties(sheetId,title))'));
 	$gid_to_title = array();
-	if (!empty($spreadsheet->sheets)) {
-		foreach ($spreadsheet->sheets as $sheet) {
-			if (isset($sheet->properties->sheetId, $sheet->properties->title)) {
-				$gid_to_title[(string) $sheet->properties->sheetId] = $sheet->properties->title;
-			}
-		}
+	foreach ($metadata as $item) {
+		$gid_to_title[$item['gid']] = $item['title'];
 	}
 
-	$gids = array_filter(array_map('trim', explode(',', $sheet_gids_comma)));
+	$gids_requested = array_filter(array_map('trim', explode(',', $sheet_gids_comma)));
+	if (empty($gids_requested)) {
+		// No GIDs specified: use all tabs in spreadsheet order.
+		$gids = array_column($metadata, 'gid');
+	} else {
+		$gids = $gids_requested;
+	}
+
+	// Always skip GID 0 (typically "Welcome" or intro sheet); row 1 = header, rest = data.
+	$gids = array_values(array_filter($gids, function ($gid) {
+		return $gid !== '0';
+	}));
+
 	if (empty($gids)) {
-		return new WP_Error('gsli_multi_gids_empty', 'No sheet GIDs provided.');
+		return new WP_Error('gsli_sheets_empty', 'Spreadsheet has no sheets (or only GID 0 was present).');
 	}
 
 	$headers = null;
@@ -742,22 +1027,15 @@ function gsli_fetch_sheet_rows_via_api($sheet_id, $sheet_gids_comma, $credential
 			continue;
 		}
 
-		// Range: 'SheetName'!A:ZZ (quote title if it contains space or special chars).
 		$safe_title = str_replace("'", "''", $title);
-		if (preg_match('/[\s,]/', $safe_title)) {
-			$range = "'" . $safe_title . "'!A:ZZ";
-		} else {
-			$range = $safe_title . '!A:ZZ';
+		$range = preg_match('/[\s,]/', $safe_title) ? "'" . $safe_title . "'!A:ZZ" : $safe_title . '!A:ZZ';
+
+		$values = gsli_gsa_sheets_get_values($sheet_id, $range, $token);
+		if (is_wp_error($values)) {
+			gsli_log('Sheets API error for GID.', array('gid' => $gid, 'error' => $values->get_error_message()));
+			return new WP_Error('gsli_sheets_api', 'Sheets API error for GID ' . $gid . ': ' . $values->get_error_message());
 		}
 
-		try {
-			$response = $service->spreadsheets_values->get($sheet_id, $range);
-		} catch (Exception $e) {
-			gsli_log('Sheets API error for GID.', array('gid' => $gid, 'error' => $e->getMessage()));
-			return new WP_Error('gsli_sheets_api', 'Sheets API error for GID ' . $gid . ': ' . $e->getMessage());
-		}
-
-		$values = $response->getValues();
 		if (empty($values)) {
 			gsli_log('Sheet GID rows (empty).', array('gid' => $gid, 'title' => $title));
 			continue;
@@ -770,20 +1048,25 @@ function gsli_fetch_sheet_rows_via_api($sheet_id, $sheet_gids_comma, $credential
 			$headers = $sheet_headers;
 			$all_rows = $sheet_rows;
 		} else {
+			// Each sheet can have columns in a different order. Map by header name, not position,
+			// then align to the first sheet's header order so data goes to the right meta keys.
 			foreach ($sheet_rows as $row) {
-				$all_rows[] = $row;
+				$keyed = gsli_map_row($sheet_headers, $row);
+				$aligned = array();
+				foreach ($headers as $h) {
+					$aligned[] = isset($keyed[$h]) ? $keyed[$h] : '';
+				}
+				$all_rows[] = $aligned;
 			}
 		}
 
-		$row_count = count($sheet_rows);
-		gsli_log('Sheet GID rows.', array('gid' => $gid, 'title' => $title, 'rows' => $row_count));
+		gsli_log('Sheet GID rows.', array('gid' => $gid, 'title' => $title, 'rows' => count($sheet_rows)));
 	}
 
 	if ($headers === null || empty($headers)) {
 		return new WP_Error('gsli_sheets_empty', 'No rows or headers found in any sheet.');
 	}
 
-	// Align row length to headers (Sheets API may return shorter rows).
 	foreach ($all_rows as $i => $row) {
 		$all_rows[$i] = array_pad(is_array($row) ? $row : array(), count($headers), '');
 	}
@@ -794,113 +1077,6 @@ function gsli_fetch_sheet_rows_via_api($sheet_id, $sheet_gids_comma, $credential
 		'headers' => $headers,
 		'rows' => $all_rows,
 	);
-}
-
-function gsli_fetch_from_endpoint($endpoint_url) {
-	$token = get_option(GSLI_OPTION_ENDPOINT_TOKEN, '');
-	$request_url = gsli_append_token_to_url($endpoint_url, $token);
-	$args = array('timeout' => 20);
-
-	if ($token !== '') {
-		$args['headers'] = array(
-			'X-GSLI-Token' => $token,
-		);
-	}
-
-	$response = wp_remote_get($request_url, $args);
-	if (is_wp_error($response)) {
-		return new WP_Error('gsli_endpoint_error', 'Failed to fetch endpoint: ' . $response->get_error_message());
-	}
-
-	$code = wp_remote_retrieve_response_code($response);
-	if ((int) $code !== 200) {
-		return new WP_Error('gsli_endpoint_status', 'Endpoint request failed with status: ' . $code);
-	}
-
-	$body = wp_remote_retrieve_body($response);
-	if (trim($body) === '') {
-		return new WP_Error('gsli_endpoint_empty', 'Endpoint response was empty.');
-	}
-
-	$content_type = wp_remote_retrieve_header($response, 'content-type');
-	$is_json = stripos((string) $content_type, 'application/json') !== false;
-	$trimmed = ltrim($body);
-	if ($is_json || $trimmed[0] === '{' || $trimmed[0] === '[') {
-		$decoded = json_decode($body, true);
-		if (json_last_error() === JSON_ERROR_NONE) {
-			$objects = isset($decoded['data']) ? $decoded['data'] : $decoded;
-			if (is_array($objects)) {
-				return gsli_rows_from_objects($objects);
-			}
-		}
-	}
-
-	return gsli_fetch_csv_rows_from_body($body);
-}
-
-function gsli_fetch_csv_rows_from_body($body) {
-	$rows = gsli_parse_csv($body);
-	if (empty($rows)) {
-		return new WP_Error('gsli_csv_rows', 'No rows found in CSV.');
-	}
-
-	$headers = array_shift($rows);
-	$headers = gsli_normalize_headers($headers);
-
-	return array(
-		'headers' => $headers,
-		'rows' => $rows,
-	);
-}
-
-function gsli_rows_from_objects($objects) {
-	if (empty($objects)) {
-		return new WP_Error('gsli_json_rows', 'No rows found in JSON.');
-	}
-
-	$headers = array();
-	foreach ($objects as $object) {
-		if (!is_array($object)) {
-			continue;
-		}
-		foreach ($object as $key => $value) {
-			if (!in_array($key, $headers, true)) {
-				$headers[] = $key;
-			}
-		}
-	}
-
-	if (empty($headers)) {
-		return new WP_Error('gsli_json_headers', 'JSON response did not contain any fields.');
-	}
-
-	$normalized = gsli_normalize_headers($headers);
-	$rows = array();
-
-	foreach ($objects as $object) {
-		if (!is_array($object)) {
-			continue;
-		}
-		$row = array();
-		foreach ($headers as $header) {
-			$row[] = isset($object[$header]) ? $object[$header] : '';
-		}
-		$rows[] = $row;
-	}
-
-	return array(
-		'headers' => $normalized,
-		'rows' => $rows,
-	);
-}
-
-function gsli_append_token_to_url($url, $token) {
-	if ($token === '') {
-		return $url;
-	}
-
-	$separator = strpos($url, '?') === false ? '?' : '&';
-	return $url . $separator . 'token=' . rawurlencode($token);
 }
 
 function gsli_parse_csv($csv_body) {
@@ -1067,6 +1243,12 @@ function gsli_get_or_create_agency($data) {
 		update_post_meta($agency_post_id, 'agency_city', sanitize_text_field($data['city']));
 	}
 
+	// For now, assign the default logo to all agency profiles (independent of sheet data).
+	$agency_logo = esc_url_raw(GSLI_DEFAULT_AGENCY_LOGO);
+	if ($agency_logo !== '') {
+		update_post_meta($agency_post_id, 'agency_logo', $agency_logo);
+	}
+
 	// Placeholder for future claim flow – real owner will be set after "Claim my agency".
 	update_post_meta($agency_post_id, 'agency_owner', 0);
 
@@ -1075,7 +1257,12 @@ function gsli_get_or_create_agency($data) {
 	return $agency_post_id;
 }
 
-function gsli_apply_listinghub_mapping($post_id, $data, $post_type) {
+/**
+ * Apply sheet data to listing post meta and terms.
+ * Only updates when the sheet has a non-empty value (does not overwrite existing with blank).
+ * On update ($is_update true), images are not queued so existing gallery is left unchanged.
+ */
+function gsli_apply_listinghub_mapping($post_id, $data, $post_type, $is_update = false) {
 	if (!empty($data['unique_id'])) {
 		$unique_id = sanitize_text_field($data['unique_id']);
 		update_post_meta($post_id, 'unique_id', $unique_id);
@@ -1117,6 +1304,8 @@ function gsli_apply_listinghub_mapping($post_id, $data, $post_type) {
 		'agency_phone' => 'phone',
 		'agency_email' => 'contact-email',
 		'agency_website' => 'contact_web',
+		'url' => 'source_listing_url',
+		'availability_status' => 'availability_status',
 	);
 
 	foreach ($meta_map as $source => $meta_key) {
@@ -1125,33 +1314,50 @@ function gsli_apply_listinghub_mapping($post_id, $data, $post_type) {
 		}
 	}
 
-	// Agency logo: stored per listing in company_logo (each listing has its own row in postmeta).
-	if (!empty($data['agency_logo'])) {
-		$logo_url = esc_url_raw(trim((string) $data['agency_logo']));
-		if ($logo_url !== '') {
-			update_post_meta($post_id, 'company_logo', $logo_url);
-		}
+	// Agency logo: for now always use a single default logo for all listings.
+	$logo_url = esc_url_raw(GSLI_DEFAULT_AGENCY_LOGO);
+	if ($logo_url !== '') {
+		update_post_meta($post_id, 'company_logo', $logo_url);
 	}
 
 	if (!empty($data['let_type'])) {
-		$let_type = strtolower(trim((string) $data['let_type']));
-		if ($let_type === 'student') {
-			$let_type = 'student-let';
-		} elseif ($let_type === 'private') {
-			$let_type = 'private-let';
+		// let_type can now be a list/array (e.g. both private and student).
+		$let_values  = gsli_split_list($data['let_type']);
+		$normalized  = array();
+		foreach ($let_values as $value) {
+			$let_type = strtolower(trim((string) $value));
+			if ($let_type === 'student') {
+				$let_type = 'student-let';
+			} elseif ($let_type === 'private') {
+				$let_type = 'private-let';
+			}
+			if ($let_type !== '') {
+				$normalized[] = $let_type;
+			}
 		}
-		gsli_assign_terms($post_id, $post_type . '-category', $let_type);
+		if (!empty($normalized)) {
+			gsli_assign_terms($post_id, $post_type . '-category', $normalized);
+		}
 	}
 
 	if (!empty($data['features_included'])) {
 		gsli_assign_terms($post_id, $post_type . '-tag', $data['features_included']);
 	}
 
+	// Property type: stored as post meta; value can be a list/array like features_included.
+	if (!empty($data['property_type'])) {
+		$types = gsli_split_list($data['property_type']);
+		if (!empty($types)) {
+			update_post_meta($post_id, 'property_type', $types);
+		}
+	}
+
 	if (!empty($data['city'])) {
 		gsli_assign_terms($post_id, $post_type . '-locations', $data['city']);
 	}
 
-	if (!empty($data['images'])) {
+	// Only queue images for new listings; on update leave existing images unchanged.
+	if (!$is_update && !empty($data['images'])) {
 		gsli_queue_images($post_id, $data['images']);
 	}
 }
