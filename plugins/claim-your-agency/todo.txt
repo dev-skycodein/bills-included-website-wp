@@ -44,13 +44,48 @@ Claim My Agency – implementation steps (high level)
 
 
 Data analytics and storage.
-[] Renting behaviour: listing views per session (optional; total per listing already exists). Log search queries & filters. Track contact agent clicks (popup open and/or send). Store listing_id on listinghub_message for lead reporting. Optional: log save/shortlist events.
 
-[] Listing performance: keep views per listing (done). Add listing_id on messages for view-to-lead and time to first enquiry. Add time-on-listing/agency (JS + endpoint). Add listing completeness score (define fields and formula).
+Renting behaviour
+[✓] Listing views per session.
+[] Log search queries & filters.
+[] Track contact agent clicks (popup open and/or send).
+[] Store listing_id on listinghub_message when contact form has dir_id (unblocks lead reporting).
+[] Optional: log save/shortlist events.
 
-[] Agency engagement: track agency claimed / unclaimed / claim start (derivable + optional events). Listings per agency (query). Agency logins/sessions (hook wp_login). Define and log response times and agency actions (edit listing, reply to lead, etc.).
+Listing performance
+[] Views per listing (already done).
+[] Add listing_id on messages for view-to-lead and time to first enquiry (same as above store step).
+[] Add time-on-listing/agency (JS + endpoint).
+[] Add listing completeness score (define fields and formula).
 
-[] Marketplace health: active listings count (weekly/monthly; define “active”). Active renters MAU/WAU (decide logged-in only vs anonymous). Renters & agencies account created (clarify definition). Supply–demand ratio by area (define area and demand).
+Agency engagement
+[] Track agency claimed / unclaimed / claim start (derivable + optional events).
+[] Listings per agency (query).
+[] Agency logins/sessions (hook wp_login).
+[] Define and log response times and agency actions (edit listing, reply to lead, etc.).
 
-[] Implement: store listing_id on listinghub_message when contact form has dir_id (unblocks lead-based metrics). See TRACKING-FEASIBILITY.md for details and “what we need from you”.
+Marketplace health
+[] Active listings count (weekly/monthly; define “active”).
+[] Active renters MAU/WAU (decide logged-in only vs anonymous).
+[] Renters & agencies account created (clarify definition).
+[] Supply–demand ratio by area (define area and demand).
+
+See TRACKING-FEASIBILITY.md for details and “what we need from you”.
+
+
+Display & reporting (who sees what).
+
+Admin (WP admin / super admin only)
+[] Marketplace health: active listings, MAU/WAU, accounts created, supply–demand by area (e.g. report page or dashboard widget).
+[] Search/filter logs: where renters search (queries, filters) – list or export.
+[] Agency funnel: claimed vs unclaimed agencies; claim starts / approvals (counts or list).
+[] Optional: all listings table with site-wide metrics per row (views, leads) for admins who manage everything.
+
+Agent (agency owner dashboard – e.g. Manage Listings / my-account)
+[] Per listing row (Manage Listings table): total views (already shown), leads count (once listing_id on messages exists), optional: contact clicks.
+[] Per listing row: optional time-on-listing, time to first enquiry, listing completeness score (when we store them).
+[] Agency-level summary for the logged-in agent: total listings, total views across listings, total leads, optional logins/sessions.
+[] Do not show other agencies’ data or site-wide marketplace health to agents.
+
+Implementation note: per-row metrics (views, leads, etc.) come from post meta or counted from listinghub_message / events; keep agent views restricted to their own listings (post_author or agency_post_id).
 

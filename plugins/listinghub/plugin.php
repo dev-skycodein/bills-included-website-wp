@@ -75,6 +75,7 @@
 				// 6. Actions
 				//	
 				
+				add_action('template_redirect', array($this, 'listinghub_track_listing_view'), 5);
 				add_action('template_redirect', function () {
 					if (
 						isset($_GET['lh_action']) &&
@@ -290,6 +291,59 @@
 				}
 				return $template_path;
 			}
+
+			/**
+			 * Track listing view count (total) and session view count (one per browser session per listing).
+			 * Runs on template_redirect so cookies can be set before any output.
+			 */
+			public function listinghub_track_listing_view() {
+				$listing_type = get_option( 'ep_listinghub_url', 'listing' );
+				if ( $listing_type === '' ) {
+					$listing_type = 'listing';
+				}
+
+				$listing_id = 0;
+				if ( is_singular( $listing_type ) ) {
+					$listing_id = get_queried_object_id();
+				} elseif ( is_page() && ! empty( $_GET['detail'] ) ) {
+					$slug = sanitize_text_field( wp_unslash( $_GET['detail'] ) );
+					$post = get_page_by_path( $slug, OBJECT, $listing_type );
+					if ( $post && $post->ID ) {
+						$listing_id = (int) $post->ID;
+					}
+				}
+
+				if ( $listing_id <= 0 ) {
+					return;
+				}
+
+				// Always increment total page views.
+				$total = (int) get_post_meta( $listing_id, 'listing_views_count', true );
+				update_post_meta( $listing_id, 'listing_views_count', $total + 1 );
+
+				// Session view: only count once per browser session per listing (cookie-based).
+				$cookie_name = 'listinghub_sess_views';
+				$max_ids    = 200;
+				$seen       = array();
+				if ( ! empty( $_COOKIE[ $cookie_name ] ) ) {
+					$raw = sanitize_text_field( wp_unslash( $_COOKIE[ $cookie_name ] ) );
+					$seen = array_filter( array_map( 'absint', explode( ',', $raw ) ) );
+				}
+				if ( ! in_array( $listing_id, $seen, true ) ) {
+					$session_count = (int) get_post_meta( $listing_id, 'listing_views_session_count', true );
+					update_post_meta( $listing_id, 'listing_views_session_count', $session_count + 1 );
+					$seen[] = $listing_id;
+					$seen   = array_slice( array_unique( $seen ), -$max_ids );
+					$value  = implode( ',', $seen );
+					$expiry = 0; // Session cookie (until browser closes).
+					if ( PHP_VERSION_ID >= 70300 ) {
+						setcookie( $cookie_name, $value, array( 'expires' => $expiry, 'path' => '/', 'samesite' => 'Lax', 'secure' => is_ssl() ) );
+					} else {
+						setcookie( $cookie_name, $value, $expiry, '/; samesite=Lax' );
+					}
+				}
+			}
+
 			public function listinghub_create_taxonomy_category() {
 				$listinghub_directory_url=get_option('ep_listinghub_url');					
 				if($listinghub_directory_url==""){$listinghub_directory_url='listing';}

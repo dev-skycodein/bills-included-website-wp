@@ -133,8 +133,8 @@
 										</div>
 										<div class="location">
 											<i class="fas fa-eye"></i>
-											<?php  esc_html_e('View Count','listinghub');?> :
-											<?php echo esc_attr(get_post_meta($row->ID,'listing_views_count',true)); ?> 												
+											<?php esc_html_e( 'View Count', 'listinghub' ); ?>: <?php echo esc_html( (string) get_post_meta( $row->ID, 'listing_views_count', true ) ); ?>
+											| <?php esc_html_e( 'Session views', 'listinghub' ); ?>: <?php echo esc_html( (string) get_post_meta( $row->ID, 'listing_views_session_count', true ) ); ?>
 										</div>
 										<?php $post_ststus=get_post_status($row->ID);  ?>
 										<span class="poststatus <?php echo ($post_ststus=='publish'?'greencolor-text':''); ?> "> 

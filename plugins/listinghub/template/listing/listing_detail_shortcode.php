@@ -47,12 +47,7 @@
 		}else{
 		$company_logo='';
 	}
-		// View Count*** (only when we have a valid listing ID from ?detail=slug)
-	if ( $listingid > 0 ) {
-		$current_count = get_post_meta( $listingid, 'listing_views_count', true );
-		$current_count = (int) $current_count + 1;
-		update_post_meta( $listingid, 'listing_views_count', $current_count );
-	}
+	// View count (total + session) is tracked in plugin via template_redirect.
 	$data_for_top=array();	
 	$data_for_top['category']='category';	
 	$data_for_top['post_date']='post_date';	
