@@ -367,7 +367,7 @@ function cya_on_approve_link_user_and_agency( $claim_id ) {
 	// ListingHub treats 'pending' payment status or past expire date as reason to revert to Basic.
 	// Claim-approved users have no subscription; set success + far-future expire so they keep Agency perks.
 	update_user_meta( $user_id, 'listinghub_payment_status', 'success' );
-	$expire_date = date( 'Y-m-d', strtotime( '+50 years' ) );
+	$expire_date = date( 'Y-m-d', strtotime( '+500 years' ) );
 	update_user_meta( $user_id, 'listinghub_exprie_date', $expire_date );
 
 	// Set agency owner on the agency profile (gsli_agency).
@@ -1514,17 +1514,6 @@ function cya_agency_update_profile() {
 	update_post_meta( $agency_post_id, 'agency_address', $address );
 	update_post_meta( $agency_post_id, 'agency_city', $city );
 
-	// Logo: single source – agency_logo only (no thumbnail). Saves to one key used everywhere.
-	if ( $logo_attachment_id > 0 ) {
-		$attach_post = get_post( $logo_attachment_id );
-		if ( $attach_post && wp_attachment_is_image( $logo_attachment_id ) ) {
-			$logo_url = wp_get_attachment_image_url( $logo_attachment_id, 'full' );
-			update_post_meta( $agency_post_id, 'agency_logo', $logo_url ? $logo_url : '' );
-		}
-	} else {
-		update_post_meta( $agency_post_id, 'agency_logo', '' );
-	}
-
 	wp_send_json_success( array( 'message' => __( 'Profile saved.', 'claim-your-agency' ) ) );
 }
 add_action( 'wp_ajax_cya_agency_update_profile', 'cya_agency_update_profile' );
@@ -2160,7 +2149,7 @@ function cya_output_claim_popup_js() {
 										cyaForm.style.display = 'none';
 									}
 									if (cyaSuccess && cyaSuccessTxt) {
-										cyaSuccessTxt.textContent = json.data && json.data.message ? json.data.message : '<?php echo esc_js( __( "Thanks, we've received your request. You can start the process by clicking the email we have sent you, please check your spam. Once you have completed the form, you should have access to your listings. Otherwise, feel free to email us.", 'claim-your-agency' ) ); ?>';
+										cyaSuccessTxt.textContent = json.data && json.data.message ? json.data.message : '<?php echo esc_js( __( 'Your claim has been submitted. Please check your email for the next steps.', 'claim-your-agency' ) ); ?>';
 										cyaSuccess.style.display = 'block';
 									}
 								})
@@ -2416,7 +2405,7 @@ function cya_submit_claim() {
 
 	wp_send_json_success(
 		array(
-			'message'        => __( "Thanks, we've received your request. You can start the process by clicking the email we have sent you, please check your spam. Once you have completed the form, you should have access to your listings. Otherwise, feel free to email us.", 'claim-your-agency' ),
+			'message'        => __( 'Your claim has been submitted. Please check your email after we start verification.', 'claim-your-agency' ),
 			'agency_name'    => $agency_name,
 			'agency_website' => $agency_website,
 			'claim_id'       => $claim_id,

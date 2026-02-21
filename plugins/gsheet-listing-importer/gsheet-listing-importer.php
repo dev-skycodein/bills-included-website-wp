@@ -1243,10 +1243,10 @@ function gsli_get_or_create_agency($data) {
 		update_post_meta($agency_post_id, 'agency_city', sanitize_text_field($data['city']));
 	}
 
-	// Single source for agency logo: agency_logo (used on agency page, listing sidebar, and agent edit form).
-	$agency_logo = esc_url_raw( GSLI_DEFAULT_AGENCY_LOGO );
-	if ( $agency_logo !== '' ) {
-		update_post_meta( $agency_post_id, 'agency_logo', $agency_logo );
+	// For now, assign the default logo to all agency profiles (independent of sheet data).
+	$agency_logo = esc_url_raw(GSLI_DEFAULT_AGENCY_LOGO);
+	if ($agency_logo !== '') {
+		update_post_meta($agency_post_id, 'agency_logo', $agency_logo);
 	}
 
 	// Placeholder for future claim flow – real owner will be set after "Claim my agency".
