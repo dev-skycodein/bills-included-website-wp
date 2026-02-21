@@ -19,7 +19,8 @@
 	if($listinghub_directory_url==""){$listinghub_directory_url='listing';}
 	global $post,$wpdb, $current_user;
 	$favorite_icon='';
-	$listingid = get_the_ID();
+	// Use queried object so we have the listing ID before the_post() in the loop (get_the_ID() can be 0 otherwise).
+	$listingid = is_singular( $listinghub_directory_url ) ? get_queried_object_id() : get_the_ID();
 	$post_id_1 = get_post($listingid);
 	$post_id_1->post_title;
 	$active_single_fields_saved=get_option('listinghub_single_fields_saved' );	
@@ -74,10 +75,12 @@
 		}else{
 		$company_logo='';
 	}
-	// View Count***
-	$current_count=get_post_meta($listingid,'listing_views_count',true);
-	$current_count=(int)$current_count+1;
-	update_post_meta($listingid,'listing_views_count',$current_count);
+	// View Count*** (only when we have a valid listing ID)
+	if ( $listingid > 0 ) {
+		$current_count = get_post_meta( $listingid, 'listing_views_count', true );
+		$current_count = (int) $current_count + 1;
+		update_post_meta( $listingid, 'listing_views_count', $current_count );
+	}
 	$data_for_top=array();	
 	$data_for_top['category']='category';	
 	$data_for_top['post_date']='post_date';	
@@ -263,14 +266,16 @@
 									<div id="section-description" class="border-bottom pb-15 mb-3 mt-3 toptitle"><i class="<?php echo esc_html($saved_icon); ?>"></i> <?php esc_html_e('Description','listinghub'); ?></div>
 									<div class=" none  mb-4">
 										<?php
-										$content_post = get_post($listingid);
+										$content_post = get_post( $listingid );
 										$raw_content  = $content_post ? $content_post->post_content : '';
 
 										if ( $is_scraped_listing && trim( (string) $raw_content ) !== '' ) {
-											$text = wp_strip_all_tags( $raw_content );
+											$text   = wp_strip_all_tags( $raw_content );
 											$length = function_exists( 'mb_strlen' ) ? mb_strlen( $text ) : strlen( $text );
 											$half   = (int) floor( $length / 2 );
-											if ( $half > 0 ) {
+											$was_truncated = false;
+
+											if ( $half > 0 && $half < $length ) {
 												if ( function_exists( 'mb_substr' ) && function_exists( 'mb_strrpos' ) ) {
 													$before_half = mb_substr( $text, 0, $half );
 													$cut_pos     = mb_strrpos( $before_half, ' ' );
@@ -280,17 +285,26 @@
 													$cut_pos     = strrpos( $before_half, ' ' );
 													$summary     = $cut_pos !== false ? substr( $text, 0, $cut_pos ) : substr( $text, 0, $half );
 												}
+												$was_truncated = true;
 											} else {
 												$summary = $text;
 											}
-											$summary       = trim( $summary );
-											$source_url    = get_post_meta( $listingid, 'source_listing_url', true );
-											echo '<p>' . esc_html( $summary ) . '</p>';
-											if ( ! empty( $source_url ) ) {
-												echo '<p><a href="' . esc_url( $source_url ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'See full description on original listing', 'listinghub' ) . '</a></p>';
-											} else {
-												echo '<p>' . esc_html__( 'See full description on original listing', 'listinghub' ) . '</p>';
+
+											$summary    = trim( $summary );
+											$source_url = get_post_meta( $listingid, 'source_listing_url', true );
+
+											$display = $summary;
+											if ( $was_truncated ) {
+												$display .= '...';
 											}
+
+											echo '<p>' . esc_html( $display ) . ' ';
+											if ( ! empty( $source_url ) ) {
+												echo '<a href="' . esc_url( $source_url ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Click here to see full description on original listing.', 'listinghub' ) . '</a>';
+											} else {
+												echo esc_html__( 'Click here to see full description on original listing.', 'listinghub' );
+											}
+											echo '</p>';
 										} else {
 											$content = apply_filters( 'the_content', $raw_content );
 											$content = str_replace( ']]>', ']]&gt;', $content );

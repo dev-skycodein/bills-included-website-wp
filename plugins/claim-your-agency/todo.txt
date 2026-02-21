@@ -8,6 +8,8 @@ Claim my Agency
 
 [] Data analytics storage. 
 
+
+
 Claim My Agency – implementation steps (high level)
 [✓] 1. Start Verification (front-end)
    - Add “Claim this agency” button on single listing pages (only for unclaimed agencies) that opens a popup form.
@@ -39,3 +41,16 @@ Claim My Agency – implementation steps (high level)
 [✓] 7. Analytics and additional tools (future)
    - Add performance insights (views, clicks, conversions) for the agency’s listings into the dashboard.
    - Gradually roll out additional tools and insights for agencies over time (e.g. reporting, export, integrations).
+
+
+Data analytics and storage.
+[] Renting behaviour: listing views per session (optional; total per listing already exists). Log search queries & filters. Track contact agent clicks (popup open and/or send). Store listing_id on listinghub_message for lead reporting. Optional: log save/shortlist events.
+
+[] Listing performance: keep views per listing (done). Add listing_id on messages for view-to-lead and time to first enquiry. Add time-on-listing/agency (JS + endpoint). Add listing completeness score (define fields and formula).
+
+[] Agency engagement: track agency claimed / unclaimed / claim start (derivable + optional events). Listings per agency (query). Agency logins/sessions (hook wp_login). Define and log response times and agency actions (edit listing, reply to lead, etc.).
+
+[] Marketplace health: active listings count (weekly/monthly; define “active”). Active renters MAU/WAU (decide logged-in only vs anonymous). Renters & agencies account created (clarify definition). Supply–demand ratio by area (define area and demand).
+
+[] Implement: store listing_id on listinghub_message when contact form has dir_id (unblocks lead-based metrics). See TRACKING-FEASIBILITY.md for details and “what we need from you”.
+
