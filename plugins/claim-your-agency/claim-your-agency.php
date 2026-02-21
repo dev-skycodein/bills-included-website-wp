@@ -124,12 +124,19 @@ function cya_set_default_claim_status( $post_id, $post, $update ) {
 add_action( 'save_post', 'cya_set_default_claim_status', 10, 3 );
 
 /**
- * Add a Status column to the Agency Claims list table.
+ * Add columns to the Agency Claims list table (Status, Email verified, Claimant email).
  */
 function cya_claim_columns( $columns ) {
-	$columns['cya_status']        = __( 'Status', 'claim-your-agency' );
-	$columns['cya_email_verified'] = __( 'Email verified', 'claim-your-agency' );
-	return $columns;
+	$new = array();
+	foreach ( $columns as $key => $label ) {
+		$new[ $key ] = $label;
+		if ( $key === 'title' ) {
+			$new['cya_claimant_email'] = __( 'Claimant email', 'claim-your-agency' );
+		}
+	}
+	$new['cya_status']         = __( 'Status', 'claim-your-agency' );
+	$new['cya_email_verified'] = __( 'Email verified', 'claim-your-agency' );
+	return $new;
 }
 add_filter( 'manage_cya_claim_posts_columns', 'cya_claim_columns' );
 
@@ -137,7 +144,14 @@ add_filter( 'manage_cya_claim_posts_columns', 'cya_claim_columns' );
  * Render custom column content.
  */
 function cya_claim_custom_column( $column, $post_id ) {
-	if ( $column === 'cya_status' ) {
+	if ( $column === 'cya_claimant_email' ) {
+		$email = get_post_meta( $post_id, 'claimant_email', true );
+		if ( $email ) {
+			echo '<a href="' . esc_url( 'mailto:' . antispambot( $email ) ) . '">' . esc_html( $email ) . '</a>';
+		} else {
+			echo '—';
+		}
+	} elseif ( $column === 'cya_status' ) {
 		$status = get_post_meta( $post_id, 'cya_status', true );
 		if ( ! $status ) {
 			$status = 'pending';
@@ -285,6 +299,58 @@ function cya_send_approval_email( $to_email, $claimant_name, $agency_post_id ) {
 			'agency_post_id' => $agency_post_id,
 			'subject'        => $subject,
 		)
+	);
+
+	return (bool) $sent;
+}
+
+/**
+ * Send a rejection email to the claimant when their agency claim is rejected.
+ *
+ * @param string $to_email       Recipient email.
+ * @param string $claimant_name  Claimant name (optional).
+ * @param string $agency_name    Agency name (optional).
+ * @return bool True if sent, false otherwise.
+ */
+function cya_send_rejection_email( $to_email, $claimant_name, $agency_name ) {
+	$enabled = (int) get_option( 'cya_rejection_email_enabled', 0 );
+	if ( ! $enabled || ! $to_email ) {
+		return false;
+	}
+
+	$subject = get_option( 'cya_rejection_email_subject', __( 'Your agency claim was not approved', 'claim-your-agency' ) );
+	$body    = get_option(
+		'cya_rejection_email_body',
+		"Hello {CLAIMANT_NAME},\n\nThank you for your interest. Unfortunately we are unable to approve your agency claim for {AGENCY_NAME} at this time.\n\nIf you have questions, please reply to this email.\n\nThanks,\n{SITE_NAME} team"
+	);
+
+	$from_name  = get_option( 'cya_approval_email_from_name', '' );
+	$from_email = get_option( 'cya_approval_email_from_email', '' );
+
+	$site_name = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
+
+	$replacements = array(
+		'{CLAIMANT_NAME}'  => $claimant_name ? $claimant_name : $to_email,
+		'{CLAIMANT_EMAIL}' => $to_email,
+		'{AGENCY_NAME}'    => $agency_name ? $agency_name : __( 'this agency', 'claim-your-agency' ),
+		'{SITE_NAME}'      => $site_name,
+	);
+
+	$subject = strtr( $subject, $replacements );
+	$body    = strtr( $body, $replacements );
+
+	$headers = array( 'Content-Type: text/html; charset=UTF-8' );
+	if ( $from_email ) {
+		$from_name_header = $from_name ? $from_name : $site_name;
+		$headers[]        = 'From: ' . $from_name_header . ' <' . $from_email . '>';
+		$headers[]        = 'Reply-To: ' . $from_email;
+	}
+
+	$sent = wp_mail( $to_email, $subject, nl2br( $body ), $headers );
+
+	cya_log(
+		$sent ? 'Rejection email sent.' : 'Rejection email failed to send.',
+		array( 'to' => $to_email, 'subject' => $subject )
 	);
 
 	return (bool) $sent;
@@ -466,6 +532,11 @@ function cya_handle_claim_status_change() {
 		);
 	} elseif ( $action === 'reject' ) {
 		update_post_meta( $post_id, 'cya_status', 'rejected' );
+		$claimant_email = get_post_meta( $post_id, 'claimant_email', true );
+		$claimant_name  = get_post_meta( $post_id, 'claimant_name', true );
+		$agency_post_id = (int) get_post_meta( $post_id, 'agency_post_id', true );
+		$agency_name    = $agency_post_id ? get_the_title( $agency_post_id ) : '';
+		cya_send_rejection_email( $claimant_email, $claimant_name, $agency_name );
 		cya_log(
 			'Claim rejected by admin.',
 			array(
@@ -678,6 +749,37 @@ function cya_register_settings() {
 			'default'           => '',
 		)
 	);
+
+	// Rejection email (when admin rejects a claim).
+	register_setting(
+		'cya_recaptcha_settings',
+		'cya_rejection_email_enabled',
+		array(
+			'type'              => 'boolean',
+			'sanitize_callback' => function ( $value ) {
+				return $value ? 1 : 0;
+			},
+			'default'           => 0,
+		)
+	);
+	register_setting(
+		'cya_recaptcha_settings',
+		'cya_rejection_email_subject',
+		array(
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+			'default'           => __( 'Your agency claim was not approved', 'claim-your-agency' ),
+		)
+	);
+	register_setting(
+		'cya_recaptcha_settings',
+		'cya_rejection_email_body',
+		array(
+			'type'              => 'string',
+			'sanitize_callback' => null,
+			'default'           => "Hello {CLAIMANT_NAME},\n\nThank you for your interest. Unfortunately we are unable to approve your agency claim for {AGENCY_NAME} at this time.\n\nIf you have questions, please reply to this email.\n\nThanks,\n{SITE_NAME} team",
+		)
+	);
 }
 add_action( 'admin_init', 'cya_register_settings' );
 
@@ -717,6 +819,10 @@ function cya_render_settings_page() {
 	$approval_from_name  = get_option( 'cya_approval_email_from_name', '' );
 	$approval_from_email = get_option( 'cya_approval_email_from_email', '' );
 	$test_email_nonce    = wp_create_nonce( 'cya_test_approval_email' );
+
+	$rejection_enabled = (int) get_option( 'cya_rejection_email_enabled', 0 );
+	$rejection_subject = get_option( 'cya_rejection_email_subject', __( 'Your agency claim was not approved', 'claim-your-agency' ) );
+	$rejection_body    = get_option( 'cya_rejection_email_body', "Hello {CLAIMANT_NAME},\n\nThank you for your interest. Unfortunately we are unable to approve your agency claim for {AGENCY_NAME} at this time.\n\nIf you have questions, please reply to this email.\n\nThanks,\n{SITE_NAME} team" );
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'Claim Your Agency – Settings', 'claim-your-agency' ); ?></h1>
@@ -879,6 +985,45 @@ function cya_render_settings_page() {
 						<textarea class="large-text code" rows="8" id="cya_approval_email_body" name="cya_approval_email_body"><?php echo esc_textarea( $approval_body ); ?></textarea>
 						<p class="description">
 							<?php esc_html_e( 'Available placeholders: {CLAIMANT_NAME}, {CLAIMANT_EMAIL}, {AGENCY_NAME}, {DASHBOARD_URL}, {SITE_NAME}.', 'claim-your-agency' ); ?>
+						</p>
+					</td>
+				</tr>
+
+				<tr>
+					<th colspan="2">
+						<h2><?php esc_html_e( 'Rejected claim email to claimant', 'claim-your-agency' ); ?></h2>
+						<p class="description">
+							<?php esc_html_e( 'Optional: send an email to the claimant when you reject their agency claim. Uses the same From name/email as the approval email above.', 'claim-your-agency' ); ?>
+						</p>
+					</th>
+				</tr>
+				<tr>
+					<th scope="row">
+						<?php esc_html_e( 'Enable rejection email', 'claim-your-agency' ); ?>
+					</th>
+					<td>
+						<label for="cya_rejection_email_enabled">
+							<input type="checkbox" id="cya_rejection_email_enabled" name="cya_rejection_email_enabled" value="1" <?php checked( $rejection_enabled, 1 ); ?> />
+							<?php esc_html_e( 'Send an email to the claimant when their agency claim is rejected.', 'claim-your-agency' ); ?>
+						</label>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="cya_rejection_email_subject"><?php esc_html_e( 'Rejection email subject', 'claim-your-agency' ); ?></label>
+					</th>
+					<td>
+						<input type="text" class="regular-text" id="cya_rejection_email_subject" name="cya_rejection_email_subject" value="<?php echo esc_attr( $rejection_subject ); ?>" />
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="cya_rejection_email_body"><?php esc_html_e( 'Rejection email body', 'claim-your-agency' ); ?></label>
+					</th>
+					<td>
+						<textarea class="large-text code" rows="6" id="cya_rejection_email_body" name="cya_rejection_email_body"><?php echo esc_textarea( $rejection_body ); ?></textarea>
+						<p class="description">
+							<?php esc_html_e( 'Placeholders: {CLAIMANT_NAME}, {CLAIMANT_EMAIL}, {AGENCY_NAME}, {SITE_NAME}.', 'claim-your-agency' ); ?>
 						</p>
 					</td>
 				</tr>
@@ -1323,7 +1468,7 @@ function cya_render_agency_edit_profile() {
 			color:rgb(255, 255, 255); background: #9a6afe; border: none; border-radius: 8px; cursor: pointer;
 			transition: background 0.15s ease, transform 0.05s ease;
 		}
-		.cya-edit-profile-wrap .cya-edit-form .cya-btn-save:hover { background: #1d4ed8; }
+		.cya-edit-profile-wrap .cya-edit-form .cya-btn-save:hover { background:rgb(174, 143, 243); }
 		.cya-edit-profile-wrap .cya-edit-form .cya-btn-save:active { transform: scale(0.98); }
 		.cya-edit-profile-wrap .cya-edit-form .cya-btn-save:disabled { opacity: 0.7; cursor: not-allowed; }
 		.cya-edit-profile-wrap #cya-agency-edit-msg {
@@ -2405,7 +2550,7 @@ function cya_submit_claim() {
 
 	wp_send_json_success(
 		array(
-			'message'        => __( 'Your claim has been submitted. Please check your email after we start verification.', 'claim-your-agency' ),
+			'message'        => __( "Thanks, we've received your request. You can start the process by clicking the email we have sent you, please check your spam. Once you have verified your email, you should have access to your listings as soon as the admin approves you. Otherwise, feel free to email us.", 'claim-your-agency' ),
 			'agency_name'    => $agency_name,
 			'agency_website' => $agency_website,
 			'claim_id'       => $claim_id,

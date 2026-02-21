@@ -3,19 +3,21 @@
 	global $current_user;
 	$user = $current_user->ID;
 	$message='';
-	if(isset($_GET['delete_id']))  {
-		$post_id=sanitize_text_field($_GET['delete_id']);
-		$post_edit = get_post($post_id);
-		if($post_edit){
-			if($post_edit->post_author==$current_user->ID){
-				wp_delete_post($post_id);
-				delete_post_meta($post_id,true);
-				$message=esc_html__("Deleted Successfully",'listinghub');
+	// Claim-approved agency owners: view-only (no add, edit, delete listings).
+	$cya_agency_owner_view_only = ( function_exists( 'cya_user_is_agency_owner' ) && cya_user_is_agency_owner( $current_user->ID ) && ! current_user_can( 'manage_options' ) );
+	if ( isset( $_GET['delete_id'] ) ) {
+		$post_id = sanitize_text_field( wp_unslash( $_GET['delete_id'] ) );
+		$post_edit = get_post( $post_id );
+		if ( $post_edit && ! $cya_agency_owner_view_only ) {
+			if ( $post_edit->post_author == $current_user->ID ) {
+				wp_delete_post( $post_id );
+				delete_post_meta( $post_id, true );
+				$message = esc_html__( "Deleted Successfully", 'listinghub' );
 			}
-			if(isset($current_user->roles[0]) and $current_user->roles[0]=='administrator'){
-				wp_delete_post($post_id);
-				delete_post_meta($post_id,true);
-				$message=esc_html__("Deleted Successfully",'listinghub');
+			if ( isset( $current_user->roles[0] ) && $current_user->roles[0] === 'administrator' ) {
+				wp_delete_post( $post_id );
+				delete_post_meta( $post_id, true );
+				$message = esc_html__( "Deleted Successfully", 'listinghub' );
 			}
 		}
 	}
@@ -31,14 +33,13 @@
 	<div class="col-md-6">
 		<ul class="nav nav-pills  float-right" id="pills-tab" role="tablist">
 			<li class="nav-item">
-				 <a class="nav-link active" id="pills-all-tab" data-toggle="pill" href="#tab_all" role="tab" aria-controls="pills-home" aria-selected="true"><?php    esc_html_e('All listings','listinghub')	;?></a>
+				 <a class="nav-link active" id="pills-all-tab" data-toggle="pill" href="#tab_all" role="tab" aria-controls="pills-home" aria-selected="true"><?php esc_html_e( 'All listings', 'listinghub' ); ?></a>
 			</li>
+			<?php if ( ! $cya_agency_owner_view_only ) : ?>
 			<li class="nav-item">
-				 <a class="nav-link " id="pills-add-tab" data-toggle="pill" href="#tab_add_new" role="tab" aria-controls="pills-home" ><?php    esc_html_e('Add New','listinghub')	;?></a>
-				 
-				
+				 <a class="nav-link " id="pills-add-tab" data-toggle="pill" href="#tab_add_new" role="tab" aria-controls="pills-home"><?php esc_html_e( 'Add New', 'listinghub' ); ?></a>
 			</li>
-			
+			<?php endif; ?>
 		</ul>
 	</div>
 	<div class="col-md-12"> <p class="border-bottom"> </p></div>
@@ -142,12 +143,12 @@
 										</span>
 									</div>
 									<div class="listing-func_manage_listing col-md-3 col-3 text-right">
-										<?php
-											$edit_post= $profile_url.'?&profile=post-edit&post-id='.$row->ID;
+										<?php if ( ! $cya_agency_owner_view_only ) :
+											$edit_post = $profile_url . '?&profile=post-edit&post-id=' . $row->ID;
 										?>
-										<a href="<?php echo esc_url($edit_post); ?>"  class="btn btn-small-ar mb-2" ><i class="fas fa-pencil-alt"></i></a>
-										<a href="<?php echo esc_url($profile_url).'?&profile=all-post&delete_id='.$row->ID ;?>"  onclick="return confirm('Are you sure to delete this post?');"  class="btn btn-small-ar mb-2"><i class="far fa-trash-alt"></i>
-										</a>
+										<a href="<?php echo esc_url( $edit_post ); ?>" class="btn btn-small-ar mb-2"><i class="fas fa-pencil-alt"></i></a>
+										<a href="<?php echo esc_url( $profile_url ); ?>?&profile=all-post&delete_id=<?php echo (int) $row->ID; ?>" onclick="return confirm('Are you sure to delete this post?');" class="btn btn-small-ar mb-2"><i class="far fa-trash-alt"></i></a>
+										<?php endif; ?>
 									</div>
 								</div>
 							</td>
@@ -162,9 +163,11 @@
 		</div>
 	
 	</div>
+	<?php if ( ! $cya_agency_owner_view_only ) : ?>
 	<div class="tab-pane" id="tab_add_new">
 		<?php
-		include( ep_listinghub_template. 'private-profile/profile-new-post-1.php');
+		include( ep_listinghub_template . 'private-profile/profile-new-post-1.php' );
 		?>
 	</div>
+	<?php endif; ?>
 </div>	

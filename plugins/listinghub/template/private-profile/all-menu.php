@@ -1,13 +1,3 @@
-
-
-
-
-
-
-
- 
-    
-    
     <?php
     $package_id=get_user_meta(get_current_user_id(),'listinghub_package_id',true);
     if($package_id!=""){
@@ -24,6 +14,11 @@
 
     $base_url = strtok( home_url( $_SERVER['REQUEST_URI'] ), '?' );
     ?>
+	<style>
+		ul#pills-tab {
+			flex-direction: row-reverse !important;
+		}
+	</style>
 <ul>
     <li class="<?php echo ($active=='dashboard'? 'active':''); ?> ">
 			<a href="<?php echo $base_url.'?profile=dashboard'; ?>">
@@ -102,9 +97,23 @@
 		<li class="<?php echo ($active=='setting'? 'active':''); ?> ">
 			<a href="<?php echo get_permalink(); ?>?&profile=setting">
 				<i class="fas fa-user-cog"></i>
-			<?php  esc_html_e('Edit Profile','listinghub');?> </a>
+			<?php esc_html_e( 'Edit Profile', 'listinghub' ); ?> </a>
 		</li>
 		<?php
+		}
+		// Edit agency profile: for claim-approved agency owners, link to CYA agency edit form.
+		if ( function_exists( 'cya_user_is_agency_owner' ) && cya_user_is_agency_owner( get_current_user_id() ) ) {
+			$cya_dashboard = get_option( 'cya_agency_dashboard_url', '' );
+			if ( $cya_dashboard !== '' ) {
+				$cya_edit_url = add_query_arg( 'agency_edit', '1', $cya_dashboard );
+				?>
+		<li>
+			<a href="<?php echo esc_url( $cya_edit_url ); ?>">
+				<i class="fas fa-building"></i>
+			<?php esc_html_e( 'Edit agency profile', 'listinghub' ); ?></a>
+		</li>
+				<?php
+			}
 		}
 	?>
 	

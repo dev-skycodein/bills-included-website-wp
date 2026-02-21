@@ -470,14 +470,22 @@
 							<?php
 										if ( $agency_post_id && $agency_owner === 0 ) :
 										?>
+										<style>
+											.cya-claim-agency-button { font-size: 15px; }
+										</style>
 										<div class="col-12 mt-2">
 											<button
 												type="button"
 												class="btn btn-border btn-big mt-1 cya-claim-agency-button"
 												onclick="bia_open_claim_agency_popup(this,'<?php echo esc_attr( (string) $agency_post_id ); ?>','<?php echo esc_attr( $listingid ); ?>')"
 											>
-												<?php esc_html_e( 'Claim this agency', 'listinghub' ); ?>
+												<?php esc_html_e( 'Claim Your Agency', 'listinghub' ); ?>
 											</button>
+										</div>
+										<?php elseif ( $agency_post_id && $agency_owner !== 0 ) : ?>
+										<style>.cya-profile-claimed-badge{display:inline-block;padding:6px 12px;font-size:13px;font-weight:600;color:#065f46;background:#d1fae5;border:1px solid #a7f3d0;border-radius:6px;}</style>
+										<div class="col-12 mt-2">
+											<span class="cya-profile-claimed-badge"><?php esc_html_e( 'Agency Claimed', 'listinghub' ); ?></span>
 										</div>
 										<?php endif; ?>
 						</div>
