@@ -1431,6 +1431,9 @@ function cya_render_agency_edit_profile() {
 	$logo_url           = get_post_meta( $agency_post_id, 'agency_logo', true );
 	$logo_url           = is_string( $logo_url ) ? trim( $logo_url ) : '';
 	$logo_attachment_id = 0;
+	if ( $logo_url !== '' && function_exists( 'attachment_url_to_postid' ) ) {
+		$logo_attachment_id = (int) attachment_url_to_postid( $logo_url );
+	}
 
 	$ajax_url = admin_url( 'admin-ajax.php' );
 	$nonce    = wp_create_nonce( 'cya_claim_nonce' );
@@ -1658,6 +1661,19 @@ function cya_agency_update_profile() {
 	update_post_meta( $agency_post_id, 'agency_phone', $phone );
 	update_post_meta( $agency_post_id, 'agency_address', $address );
 	update_post_meta( $agency_post_id, 'agency_city', $city );
+
+	// Logo: single source – agency_logo (agency post meta). Save URL from selected attachment.
+	if ( $logo_attachment_id > 0 ) {
+		$attach_post = get_post( $logo_attachment_id );
+		if ( $attach_post && wp_attachment_is_image( $logo_attachment_id ) ) {
+			$logo_url = wp_get_attachment_image_url( $logo_attachment_id, 'full' );
+			update_post_meta( $agency_post_id, 'agency_logo', $logo_url ? $logo_url : '' );
+		}
+	} else {
+		update_post_meta( $agency_post_id, 'agency_logo', '' );
+	}
+	// Mark that the owner set the logo so re-scrape / importer does not overwrite it.
+	update_post_meta( $agency_post_id, 'agency_logo_edited_by_owner', 1 );
 
 	wp_send_json_success( array( 'message' => __( 'Profile saved.', 'claim-your-agency' ) ) );
 }
