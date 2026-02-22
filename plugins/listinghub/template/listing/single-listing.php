@@ -480,7 +480,7 @@
 										<?php elseif ( $agency_post_id && $agency_owner !== 0 ) : ?>
 										<style>.cya-profile-claimed-badge{display:inline-block;padding:6px 12px;font-size:13px;font-weight:600;color:#065f46;background:#d1fae5;border:1px solid #a7f3d0;border-radius:6px;}</style>
 										<div class="col-12 mt-2">
-											<span class="cya-profile-claimed-badge"><?php esc_html_e( 'Agency Claimed', 'listinghub' ); ?></span>
+											<span class="cya-profile-claimed-badge"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3Z" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.71423 11.6223L11.2436 15L16.2857 9" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <?php esc_html_e( 'Claimed Agency', 'listinghub' ); ?></span>
 										</div>
 										<?php endif; ?>
 						</div>
