@@ -1205,6 +1205,7 @@ function gsli_get_or_create_agency($data) {
 	));
 
 	if (!empty($existing)) {
+		// Existing agency: we do not update its meta here (no re-sync from sheet).
 		return (int) $existing[0];
 	}
 
@@ -1243,11 +1244,12 @@ function gsli_get_or_create_agency($data) {
 		update_post_meta($agency_post_id, 'agency_city', sanitize_text_field($data['city']));
 	}
 
-	// For now, assign the default logo to all agency profiles (independent of sheet data).
+	// Default logo for new agencies. When an agency is claimed and the owner edits the logo via
 	$agency_logo = esc_url_raw(GSLI_DEFAULT_AGENCY_LOGO);
 	if ($agency_logo !== '') {
 		update_post_meta($agency_post_id, 'agency_logo', $agency_logo);
 	}
+	update_post_meta($agency_post_id, 'agency_logo_edited_by_owner', 0);
 
 	// Placeholder for future claim flow – real owner will be set after "Claim my agency".
 	update_post_meta($agency_post_id, 'agency_owner', 0);
@@ -1314,14 +1316,10 @@ function gsli_apply_listinghub_mapping($post_id, $data, $post_type, $is_update =
 		}
 	}
 
-	// Logo: single source is the agency. Only set company_logo on the listing when it has no agency
-	// (e.g. standalone listing). When the listing has an agency, logo is always read from the agency.
-	$agency_post_id_for_logo = (int) get_post_meta( $post_id, 'agency_post_id', true );
-	if ( ! $agency_post_id_for_logo ) {
-		$logo_url = esc_url_raw( GSLI_DEFAULT_AGENCY_LOGO );
-		if ( $logo_url !== '' ) {
-			update_post_meta( $post_id, 'company_logo', $logo_url );
-		}
+	// Logo: every listing gets the default company_logo. When the listing has an agency, the single
+	$logo_url = esc_url_raw( GSLI_DEFAULT_AGENCY_LOGO );
+	if ( $logo_url !== '' ) {
+		update_post_meta( $post_id, 'company_logo', $logo_url );
 	}
 
 	if (!empty($data['let_type'])) {
