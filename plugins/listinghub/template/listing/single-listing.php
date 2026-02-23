@@ -196,7 +196,7 @@
 					if ( $show_view_original ) :
 						$view_original_href = ! empty( $source_listing_url ) ? $source_listing_url : '#';
 						?>
-					<a href="<?php echo esc_url( $view_original_href ); ?>" target="_blank" rel="noopener noreferrer" class="btn btn-big mr-2 mb-2 single-contact-button single-view-original-listing"><?php esc_html_e( 'View original listing', 'listinghub' ); ?></a>
+					<a href="<?php echo esc_url( $view_original_href ); ?>" target="_blank" rel="noopener noreferrer" class="btn btn-big mr-2 mb-2 single-contact-button single-view-original-listing" data-listingid="<?php echo esc_attr( $listingid ); ?>"><?php esc_html_e( 'View original listing', 'listinghub' ); ?></a>
 					<?php endif; ?>
 							<?php
 							$user_ID = get_current_user_id();

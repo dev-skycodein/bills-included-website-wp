@@ -615,7 +615,7 @@ if ( ! function_exists( 'listinghub_log_search' ) ) {
 		$wpdb->insert(
 			$table,
 			array(
-				'created'       => current_time( 'mysql' ),
+				'created'      => current_time( 'mysql' ),
 				'keyword'      => $keyword,
 				'sort'         => $sort,
 				'params'       => $params_json,
@@ -623,5 +623,192 @@ if ( ! function_exists( 'listinghub_log_search' ) ) {
 			),
 			array( '%s', '%s', '%s', '%s', '%d' )
 		);
+
+		// Basic debug logging for analytics troubleshooting.
+		error_log(
+			sprintf(
+				'listinghub_log_search: table=%s, keyword=%s, sort=%s, result_count=%d, error=%s, insert_id=%d',
+				$table,
+				is_string( $keyword ) ? $keyword : '',
+				is_string( $sort ) ? $sort : '',
+				(int) $result_count,
+				(string) $wpdb->last_error,
+				(int) $wpdb->insert_id
+			)
+		);
 	}
 }
+
+/**
+ * Log a contact-related event (view original listing click, contact popup open, contact send).
+ *
+ * @param int    $listing_id Listing/post ID.
+ * @param string $event_type Event type slug (e.g. 'view_original_click', 'contact_popup_open', 'contact_send').
+ * @param array  $extra      Optional extra context, stored as JSON.
+ */
+if ( ! function_exists( 'listinghub_log_contact_event' ) ) {
+	function listinghub_log_contact_event( $listing_id, $event_type, $extra = array() ) {
+		global $wpdb;
+
+		$table_name = defined( 'ep_listinghub_CONTACT_LOG_TABLE' ) ? ep_listinghub_CONTACT_LOG_TABLE : 'listinghub_contact_log';
+		$table      = $wpdb->prefix . $table_name;
+
+		$listing_id = (int) $listing_id;
+		if ( $listing_id <= 0 ) {
+			return;
+		}
+
+		$event_type = substr( sanitize_text_field( (string) $event_type ), 0, 64 );
+		if ( $event_type === '' ) {
+			return;
+		}
+
+		$meta = array();
+		if ( is_array( $extra ) && ! empty( $extra ) ) {
+			foreach ( $extra as $key => $value ) {
+				$k = sanitize_key( $key );
+				if ( $k === '' ) {
+					continue;
+				}
+				$meta[ $k ] = is_scalar( $value ) ? sanitize_text_field( (string) $value ) : $value;
+			}
+		}
+
+		$meta_json = empty( $meta ) ? null : wp_json_encode( $meta );
+
+		$wpdb->insert(
+			$table,
+			array(
+				'created'    => current_time( 'mysql' ),
+				'listing_id' => $listing_id,
+				'event_type' => $event_type,
+				'meta'       => $meta_json,
+			),
+			array( '%s', '%d', '%s', '%s' )
+		);
+
+		// Basic debug logging for contact analytics troubleshooting.
+		error_log(
+			sprintf(
+				'listinghub_log_contact_event: table=%s, listing_id=%d, event_type=%s, error=%s, insert_id=%d',
+				$table,
+				(int) $listing_id,
+				$event_type,
+				(string) $wpdb->last_error,
+				(int) $wpdb->insert_id
+			)
+		);
+	}
+}
+
+// AJAX endpoints to log contact events from the front-end.
+add_action(
+	'wp_ajax_listinghub_log_contact_event',
+	function () {
+		$listing_id = isset( $_POST['listing_id'] ) ? (int) $_POST['listing_id'] : 0;
+		$event_type = isset( $_POST['event_type'] ) ? sanitize_text_field( wp_unslash( $_POST['event_type'] ) ) : '';
+
+		if ( $listing_id <= 0 || $event_type === '' ) {
+			error_log(
+				sprintf(
+					'listinghub_log_contact_event AJAX error: missing_data (listing_id=%d, event_type=%s)',
+					(int) $listing_id,
+					$event_type
+				)
+			);
+			wp_send_json_error( array( 'message' => 'missing_data' ) );
+		}
+
+		$allowed = array( 'view_original_click', 'contact_popup_open', 'contact_send' );
+		if ( ! in_array( $event_type, $allowed, true ) ) {
+			error_log(
+				sprintf(
+					'listinghub_log_contact_event AJAX error: invalid_event (listing_id=%d, event_type=%s)',
+					(int) $listing_id,
+					$event_type
+				)
+			);
+			wp_send_json_error( array( 'message' => 'invalid_event' ) );
+		}
+
+		$extra = array();
+		if ( ! empty( $_POST['extra'] ) && is_array( $_POST['extra'] ) ) {
+			foreach ( $_POST['extra'] as $key => $value ) {
+				$k = sanitize_key( $key );
+				if ( $k === '' ) {
+					continue;
+				}
+				$extra[ $k ] = is_scalar( $value ) ? sanitize_text_field( wp_unslash( (string) $value ) ) : $value;
+			}
+		}
+
+		if ( function_exists( 'listinghub_log_contact_event' ) ) {
+			listinghub_log_contact_event( $listing_id, $event_type, $extra );
+		}
+
+		error_log(
+			sprintf(
+				'listinghub_log_contact_event AJAX success: listing_id=%d, event_type=%s',
+				(int) $listing_id,
+				$event_type
+			)
+		);
+
+		wp_send_json_success();
+	}
+);
+add_action(
+	'wp_ajax_nopriv_listinghub_log_contact_event',
+	function () {
+		$listing_id = isset( $_POST['listing_id'] ) ? (int) $_POST['listing_id'] : 0;
+		$event_type = isset( $_POST['event_type'] ) ? sanitize_text_field( wp_unslash( $_POST['event_type'] ) ) : '';
+
+		if ( $listing_id <= 0 || $event_type === '' ) {
+			error_log(
+				sprintf(
+					'listinghub_log_contact_event (nopriv) AJAX error: missing_data (listing_id=%d, event_type=%s)',
+					(int) $listing_id,
+					$event_type
+				)
+			);
+			wp_send_json_error( array( 'message' => 'missing_data' ) );
+		}
+
+		$allowed = array( 'view_original_click', 'contact_popup_open', 'contact_send' );
+		if ( ! in_array( $event_type, $allowed, true ) ) {
+			error_log(
+				sprintf(
+					'listinghub_log_contact_event (nopriv) AJAX error: invalid_event (listing_id=%d, event_type=%s)',
+					(int) $listing_id,
+					$event_type
+				)
+			);
+			wp_send_json_error( array( 'message' => 'invalid_event' ) );
+		}
+
+		$extra = array();
+		if ( ! empty( $_POST['extra'] ) && is_array( $_POST['extra'] ) ) {
+			foreach ( $_POST['extra'] as $key => $value ) {
+				$k = sanitize_key( $key );
+				if ( $k === '' ) {
+					continue;
+				}
+				$extra[ $k ] = is_scalar( $value ) ? sanitize_text_field( wp_unslash( (string) $value ) ) : $value;
+			}
+		}
+
+		if ( function_exists( 'listinghub_log_contact_event' ) ) {
+			listinghub_log_contact_event( $listing_id, $event_type, $extra );
+		}
+
+		error_log(
+			sprintf(
+				'listinghub_log_contact_event (nopriv) AJAX success: listing_id=%d, event_type=%s',
+				(int) $listing_id,
+				$event_type
+			)
+		);
+
+		wp_send_json_success();
+	}
+);

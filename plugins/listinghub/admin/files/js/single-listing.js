@@ -18,6 +18,55 @@ var accordionBtn = document.querySelectorAll('.accordionTitle');
 var allTexts = document.querySelectorAll('.text');
 var accIcon = document.querySelectorAll('.accIcon');
 
+// Log contact-related events (view original click, contact popup open, contact send).
+function listinghub_log_contact_event(listingId, eventType, extra) {
+	"use strict";
+	if (!listingId || !eventType) {
+		if (typeof console !== 'undefined') {
+			console.warn('listinghub_log_contact_event called without listingId or eventType', listingId, eventType);
+		}
+		return;
+	}
+
+	if (typeof ajaxurl === 'undefined') {
+		if (typeof console !== 'undefined') {
+			console.error('listinghub_log_contact_event: ajaxurl is undefined');
+		}
+		return;
+	}
+
+	var data = {
+		action: 'listinghub_log_contact_event',
+		listing_id: listingId,
+		event_type: eventType
+	};
+
+	if (extra && typeof extra === 'object') {
+		for (var key in extra) {
+			if (Object.prototype.hasOwnProperty.call(extra, key)) {
+				data['extra[' + key + ']'] = extra[key];
+			}
+		}
+	}
+
+	if (typeof console !== 'undefined') {
+		console.log('listinghub_log_contact_event: sending', data, 'to', ajaxurl);
+	}
+
+	jQuery
+		.post(ajaxurl, data)
+		.done(function (resp) {
+			if (typeof console !== 'undefined') {
+				console.log('listinghub_log_contact_event: success', resp);
+			}
+		})
+		.fail(function (xhr, status, error) {
+			if (typeof console !== 'undefined') {
+				console.error('listinghub_log_contact_event: AJAX error', status, error, xhr && xhr.responseText);
+			}
+		});
+}
+
 
 function listinghub_call_filter(){
 	"use strict";
@@ -38,6 +87,10 @@ function listinghub_call_map(){
 
 function listinghub_call_popup(dir_id){
 	"use strict";
+	// Track that the contact popup was opened.
+	if (typeof listinghub_log_contact_event === 'function') {
+		listinghub_log_contact_event(dir_id, 'contact_popup_open');
+	}
 	var contactform =listinghub_data.ajaxurl+'?action=listinghub_listing_contact_popup&dir_id='+dir_id;	
 	jQuery.colorbox({ href:contactform, width:"95%", height: "85%", maxWidth: '450px',maxHeight: '650px', });
 }
@@ -53,7 +106,15 @@ jQuery(document).ready(function(){
 	
 	jQuery(window).on('resize', function(){
 		listinghub_single_block_resize();
-	});   
+	});
+
+	// Track clicks on "View original listing" buttons on the single listing page.
+	jQuery(document).on('click', '.single-view-original-listing', function () {
+		var listingId = jQuery(this).data('listingid');
+		if (listingId) {
+			listinghub_log_contact_event(listingId, 'view_original_click');
+		}
+	});
 })
 function listinghub_single_block_resize(){
 	"use strict";
