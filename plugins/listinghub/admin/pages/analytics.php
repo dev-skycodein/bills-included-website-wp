@@ -14,9 +14,9 @@ $table              = $wpdb->prefix . $search_table_name;
 $contact_table      = $wpdb->prefix . $contact_table_name;
 $max_logs           = 5000;
 
-// Active tab: search | contact
+// Active tab: search | contact | leads
 $tab          = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'search';
-$allowed_tabs = array( 'search', 'contact' );
+$allowed_tabs = array( 'search', 'contact', 'leads' );
 if ( ! in_array( $tab, $allowed_tabs, true ) ) {
 	$tab = 'search';
 }
@@ -47,7 +47,7 @@ switch ( $period ) {
 }
 
 // CSV export – search log
-if ( isset( $_GET['export'] ) && $_GET['export'] === 'csv' && $tab !== 'contact' ) {
+if ( isset( $_GET['export'] ) && $_GET['export'] === 'csv' && $tab === 'search' ) {
 	if ( $since ) {
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
@@ -206,6 +206,50 @@ $contact_event_labels = array(
 	'contact_send'         => __( 'Contact form sent', 'listinghub' ),
 );
 
+// Load lead submissions (messages) for Lead submissions tab.
+$lead_counts = array();
+if ( $tab === 'leads' ) {
+	$posts_table    = $wpdb->posts;
+	$postmeta_table = $wpdb->postmeta;
+
+	if ( $since ) {
+		$sql = $wpdb->prepare(
+			"SELECT pm.meta_value AS listing_id, COUNT(*) AS lead_count
+			 FROM {$posts_table} p
+			 INNER JOIN {$postmeta_table} pm ON p.ID = pm.post_id
+			 WHERE p.post_type = %s
+			   AND p.post_status = 'private'
+			   AND pm.meta_key = 'listing_id'
+			   AND p.post_date >= %s
+			 GROUP BY pm.meta_value
+			 ORDER BY lead_count DESC",
+			'listinghub_message',
+			$since
+		);
+	} else {
+		$sql = $wpdb->prepare(
+			"SELECT pm.meta_value AS listing_id, COUNT(*) AS lead_count
+			 FROM {$posts_table} p
+			 INNER JOIN {$postmeta_table} pm ON p.ID = pm.post_id
+			 WHERE p.post_type = %s
+			   AND p.post_status = 'private'
+			   AND pm.meta_key = 'listing_id'
+			 GROUP BY pm.meta_value
+			 ORDER BY lead_count DESC",
+			'listinghub_message'
+		);
+	}
+
+	$lead_rows = $wpdb->get_results( $sql, ARRAY_A );
+	foreach ( (array) $lead_rows as $row ) {
+		$listing_id = (int) $row['listing_id'];
+		if ( $listing_id <= 0 ) {
+			continue;
+		}
+		$lead_counts[ $listing_id ] = (int) $row['lead_count'];
+	}
+}
+
 include 'header.php';
 ?>
 <div class="listinghub-settings mt-3">
@@ -221,6 +265,7 @@ include 'header.php';
 	<div class="nav-tab-wrapper mb-3">
 		<a href="<?php echo esc_url( add_query_arg( 'tab', 'search', $base_url ) ); ?>" class="nav-tab <?php echo $tab === 'search' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'Search & filters', 'listinghub' ); ?></a>
 		<a href="<?php echo esc_url( add_query_arg( 'tab', 'contact', $base_url ) ); ?>" class="nav-tab <?php echo $tab === 'contact' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'Contact Agent Clicks', 'listinghub' ); ?></a>
+		<a href="<?php echo esc_url( add_query_arg( 'tab', 'leads', $base_url ) ); ?>" class="nav-tab <?php echo $tab === 'leads' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'Lead submissions', 'listinghub' ); ?></a>
 	</div>
 
 	<div class="metabox-holder">
@@ -317,7 +362,7 @@ include 'header.php';
 				</table>
 			<?php endif; ?>
 
-		<?php else : ?>
+		<?php elseif ( $tab === 'contact' ) : ?>
 			<!-- Contact Agent Clicks tab -->
 			<p class="description"><?php esc_html_e( 'Clicks on “View original listing” and “Contact via Bills Included” (popup open and form send) on single listing pages.', 'listinghub' ); ?></p>
 			<p class="mb-2">
@@ -406,6 +451,46 @@ include 'header.php';
 						</tbody>
 					</table>
 				<?php endif; ?>
+			<?php endif; ?>
+
+		<?php elseif ( $tab === 'leads' ) : ?>
+			<p class="description">
+				<?php esc_html_e( 'Total number of enquiries (contact form submissions) each listing has received in the selected period.', 'listinghub' ); ?>
+			</p>
+			<?php if ( empty( $lead_counts ) ) : ?>
+				<p><?php esc_html_e( 'No lead submissions yet for this period.', 'listinghub' ); ?></p>
+			<?php else : ?>
+				<table class="wp-list-table widefat fixed striped">
+					<thead>
+						<tr>
+							<th scope="col"><?php esc_html_e( 'Listing', 'listinghub' ); ?></th>
+							<th scope="col"><?php esc_html_e( 'Lead submissions', 'listinghub' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php foreach ( $lead_counts as $listing_id => $lead_count ) : ?>
+							<?php
+							$listing_id = (int) $listing_id;
+							$title      = $listing_id ? get_the_title( $listing_id ) : '';
+							$link       = $listing_id ? get_edit_post_link( $listing_id, 'raw' ) : '';
+							?>
+							<tr>
+								<td>
+									<?php
+									if ( $link && $title ) {
+										echo '<a href="' . esc_url( $link ) . '">' . esc_html( $title ) . ' (#' . (int) $listing_id . ')</a>';
+									} elseif ( $title ) {
+										echo esc_html( $title ) . ' (#' . (int) $listing_id . ')';
+									} else {
+										echo '#' . (int) $listing_id;
+									}
+									?>
+								</td>
+								<td><?php echo esc_html( (string) $lead_count ); ?></td>
+							</tr>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
 			<?php endif; ?>
 		<?php endif; ?>
 	</div>

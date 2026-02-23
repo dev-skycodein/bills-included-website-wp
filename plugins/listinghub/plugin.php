@@ -3553,10 +3553,12 @@
 				}
 				parse_str($_POST['form_data'], $form_data);					
 				// Create new message post
-				$allowed_html = wp_kses_allowed_html( 'post' );					
+				$allowed_html           = wp_kses_allowed_html( 'post' );
+				$listing_id_for_message = 0;
 				if(isset($form_data['dir_id'])){
 					if($form_data['dir_id']>0){
 						$dir_id=sanitize_text_field($form_data['dir_id']);
+						$listing_id_for_message = (int) $dir_id;
 						$dir_detail= get_post($dir_id); 
 						$dir_title= '<a href="'.get_permalink($dir_id).'">'.$dir_detail->post_title.'</a>';
 						$user_id=$dir_detail->post_author;
@@ -3591,6 +3593,9 @@
 				Update_post_meta($newpost_id,'user_to', $userid_to );
 				Update_post_meta($newpost_id,'dir_url', $dir_title );				
 				Update_post_meta($newpost_id,'from_email',sanitize_email($form_data['email_address']) );
+				if ( $listing_id_for_message > 0 ) {
+					Update_post_meta( $newpost_id, 'listing_id', $listing_id_for_message );
+				}
 				if(isset($form_data['name'])){
 					Update_post_meta($newpost_id,'from_name', sanitize_text_field($form_data['name']) );
 				}
