@@ -534,3 +534,94 @@ if (!function_exists('listinghub_get_search_args')) {
 		return $search_arg;
 	}
 }
+
+/**
+ * Log a listing search/filter to the search log table (for Analytics). Only logs when request has search-related params.
+ *
+ * @param string $listing_type Post type (e.g. 'listing').
+ * @param int    $result_count Number of results (e.g. $listinghub_query->found_posts).
+ */
+if ( ! function_exists( 'listinghub_log_search' ) ) {
+	function listinghub_log_search( $listing_type, $result_count ) {
+		global $wpdb;
+		// Derive table name even if the constant is not available (older plugin load order, etc.).
+		$table_name = defined( 'ep_listinghub_SEARCH_LOG_TABLE' ) ? ep_listinghub_SEARCH_LOG_TABLE : 'listinghub_search_log';
+		$table      = $wpdb->prefix . $table_name;
+
+		$prefix = 'sf';
+		$has_param = false;
+		if ( ! empty( $_REQUEST[ $prefix . 'sort_listing' ] ) ) {
+			$has_param = true;
+		}
+		if ( ! empty( $_REQUEST[ $prefix . 'title' ] ) || ! empty( $_GET['input-search'] ) ) {
+			$has_param = true;
+		}
+		if ( ! $has_param && ! empty( $_REQUEST ) ) {
+			foreach ( array_keys( $_REQUEST ) as $key ) {
+				if ( strpos( (string) $key, $prefix ) === 0 && $key !== $prefix . 'sort_listing' ) {
+					$has_param = true;
+					break;
+				}
+			}
+		}
+		if ( ! $has_param ) {
+			return;
+		}
+		$keyword = '';
+		if ( ! empty( $_REQUEST[ $prefix . 'title' ] ) ) {
+			$v = $_REQUEST[ $prefix . 'title' ];
+			$keyword = is_array( $v ) ? implode( ', ', array_map( 'sanitize_text_field', $v ) ) : sanitize_text_field( $v );
+		}
+		if ( $keyword === '' && ! empty( $_GET['input-search'] ) ) {
+			$keyword = sanitize_text_field( wp_unslash( $_GET['input-search'] ) );
+		}
+		$keyword = substr( $keyword, 0, 255 );
+		$sort = '';
+		if ( ! empty( $_REQUEST[ $prefix . 'sort_listing' ] ) ) {
+			$sort = substr( sanitize_text_field( wp_unslash( $_REQUEST[ $prefix . 'sort_listing' ] ) ), 0, 64 );
+		}
+		$params = array();
+		foreach ( $_REQUEST as $k => $v ) {
+			if ( strpos( (string) $k, $prefix ) !== 0 ) {
+				continue;
+			}
+			if ( is_array( $v ) ) {
+				$san = array();
+				foreach ( $v as $one ) {
+					$one_san = sanitize_text_field( $one );
+					if ( $one_san === '' ) {
+						continue;
+					}
+					$san[] = $one_san;
+				}
+				if ( ! empty( $san ) ) {
+					$params[ $k ] = $san;
+				}
+			} else {
+				$val = sanitize_text_field( wp_unslash( $v ) );
+				if ( $val === '' ) {
+					continue;
+				}
+				$params[ $k ] = $val;
+			}
+		}
+		if ( ! empty( $_GET['input-search'] ) ) {
+			$search_val = sanitize_text_field( wp_unslash( $_GET['input-search'] ) );
+			if ( $search_val !== '' ) {
+				$params['input-search'] = $search_val;
+			}
+		}
+		$params_json = wp_json_encode( $params );
+		$wpdb->insert(
+			$table,
+			array(
+				'created'       => current_time( 'mysql' ),
+				'keyword'      => $keyword,
+				'sort'         => $sort,
+				'params'       => $params_json,
+				'result_count' => (int) $result_count,
+			),
+			array( '%s', '%s', '%s', '%s', '%d' )
+		);
+	}
+}

@@ -102,6 +102,9 @@
 		}else{
 		$listinghub_query = new WP_Query( $args );
 	}
+	if ( function_exists( 'listinghub_log_search' ) ) {
+		listinghub_log_search( $listinghub_directory_url, $listinghub_query->found_posts );
+	}
 	$active_archive_fields=listinghub_get_archive_fields_all();	
 	$active_archive_icon_saved=get_option('listinghub_archive_icon_saved' );
 	

@@ -7,6 +7,8 @@
 
 ## 1. Renting behaviour
 
+**Audience:** Admin only (search logs and renter engagement metrics; not visible to agents except as high-level listing summaries if desired).
+
 | Data needed | Doable? | Notes | What we need from you |
 |-------------|--------|-------|------------------------|
 | **Listing views & visits (per listing, per session)** | Partially | **Per listing total:** already stored as `listing_views_count` on each listing (incremented in `single-listing.php` and `listing_detail_shortcode.php`). **Per session:** not stored; would need a new event log (e.g. custom table or options) keyed by session/cookie + listing ID. | Confirm if “per session” is required (e.g. unique visitors per listing). If yes, we add server-side or JS-based session tracking. |
@@ -18,6 +20,8 @@
 ---
 
 ## 2. Listing performance
+
+**Audience:** Admin only (listing performance metrics including view-to-lead split by CTA and time to first enquiry).
 
 | Data needed | Doable? | Notes | What we need from you |
 |-------------|--------|-------|------------------------|
@@ -31,6 +35,8 @@
 
 ## 3. Agency engagement
 
+**Audience:** Admin only (engagement per agency: claims, logins, response times, actions).
+
 | Data needed | Doable? | Notes | What we need from you |
 |-------------|--------|-------|------------------------|
 | **Agency claimed, unclaimed & claim agency start** | Yes | **Claimed:** `gsli_agency` with `agency_owner` > 0. **Unclaimed:** `agency_owner` empty or 0. **Claim start:** `cya_claim` post created (status pending) with `agency_post_id`; already logged in CYA. We can add analytics events (or DB records) for “claim form opened” and “claim submitted”. | None for counts. Optional: confirm if you want explicit “claim start” (form opened) tracking. |
@@ -42,6 +48,8 @@
 ---
 
 ## 4. Marketplace health
+
+**Audience:** Admin only (site-wide marketplace metrics for monitoring and pitching; never shown to agents).
 
 | Data needed | Doable? | Notes | What we need from you |
 |-------------|--------|-------|------------------------|

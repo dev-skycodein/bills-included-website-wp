@@ -127,6 +127,7 @@
 				self::$pages['listinghub-payment-paypal'] = add_submenu_page('', 'listinghub Payment setting', '', 'manage_options', 'listinghub-payment-paypal', array($this, 'listinghub_paypal_update_page'));
 				self::$pages['listinghub-payment-stripe'] = add_submenu_page('', 'listinghub Payment setting', '', 'manage_options', 'listinghub-payment-stripe', array($this, 'listinghub_stripe_update_page'));
 				self::$pages['listinghub-user_update'] = add_submenu_page('', 'listinghub user_update', '', 'manage_options', 'listinghub-user_update', array($this, 'listinghub_user_update_page'));
+				self::$pages['listinghub-analytics'] = add_submenu_page('listinghub', __('Analytics', 'listinghub'), __('Analytics', 'listinghub'), 'manage_options', 'listinghub-analytics', array($this, 'listinghub_analytics_page'));
 			}
 			/**
 				* Menu Page Router
@@ -165,6 +166,9 @@
 			}
 			public function listinghub_user_update_page(){
 				require_once ('pages/user_update.php');
+			}
+			public function listinghub_analytics_page(){
+				require_once ('pages/analytics.php');
 			}
 			/**
 				* Page based Script Loader

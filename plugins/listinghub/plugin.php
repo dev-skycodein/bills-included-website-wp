@@ -218,6 +218,7 @@
 				add_action( 'init', array($this, 'listinghub_create_taxonomy_locations'));
 				add_action( 'init', array($this, 'ep_listinghub_pdf_cv') );
 				add_action('init', array($this, 'listinghub_all_functions'));
+				add_action( 'init', array($this, 'listinghub_maybe_create_search_log_table'), 0 );
 				add_action( 'wp_loaded', array($this, 'listinghub_woocommerce_form_submit') );
 				add_action( 'init', array($this, 'ep_listinghub_cpt_columns') );
 				// Add color script
@@ -239,9 +240,13 @@
 				wp_send_json_success('Pending email cancelled.');
 				wp_die(); // Important!
 			}
+			/** Current schema version for the search log table. Bump when table structure changes. */
+			const SEARCH_LOG_TABLE_SCHEMA_VERSION = 1;
+
 			private function define_constants() {
 				if (!defined('ep_listinghub_BASENAME')) define('ep_listinghub_BASENAME', plugin_basename(__FILE__));
 				if (!defined('ep_listinghub_DIR')) define('ep_listinghub_DIR', dirname(__FILE__));
+				if (!defined('ep_listinghub_SEARCH_LOG_TABLE')) define('ep_listinghub_SEARCH_LOG_TABLE', 'listinghub_search_log');
 				if (!defined('ep_listinghub_FOLDER'))define('ep_listinghub_FOLDER', plugin_basename(dirname(__FILE__)));
 				if (!defined('ep_listinghub_ABSPATH'))define('ep_listinghub_ABSPATH', trailingslashit(str_replace("\\", "/", WP_PLUGIN_DIR . '/' . plugin_basename(dirname(__FILE__)))));
 				if (!defined('ep_listinghub_URLPATH'))define('ep_listinghub_URLPATH', trailingslashit(plugins_url() . '/' . plugin_basename(dirname(__FILE__))));
@@ -2648,6 +2653,42 @@
 				require_once('functions/listing-functions.php');
 				// Global
 			}
+			/**
+				* Ensure search log table exists. Runs on init (schema version check).
+				* Creates or upgrades the table when plugin is used, without relying on activation.
+				*/
+			public function listinghub_maybe_create_search_log_table() {
+				global $wpdb;
+				$table_name = defined( 'ep_listinghub_SEARCH_LOG_TABLE' ) ? ep_listinghub_SEARCH_LOG_TABLE : 'listinghub_search_log';
+				$table      = $wpdb->prefix . $table_name;
+				$exists     = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
+				// If table already exists, ensure option is set and we're done.
+				if ( $exists === $table ) {
+					update_option( 'listinghub_search_log_schema_version', self::SEARCH_LOG_TABLE_SCHEMA_VERSION );
+					return;
+				}
+
+				$charset = $wpdb->get_charset_collate();
+				$sql     = "CREATE TABLE {$table} (
+					id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+					created datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+					keyword varchar(255) DEFAULT NULL,
+					sort varchar(64) DEFAULT NULL,
+					params longtext DEFAULT NULL,
+					result_count int(10) unsigned DEFAULT NULL,
+					PRIMARY KEY (id),
+					KEY created (created)
+				) {$charset};";
+
+				require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+				dbDelta( $sql );
+
+				$exists_after = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
+				if ( $exists_after === $table ) {
+					update_option( 'listinghub_search_log_schema_version', self::SEARCH_LOG_TABLE_SCHEMA_VERSION );
+				}
+			}
+
 			/**
 				* Called every time the plug-in is activated.
 			*/

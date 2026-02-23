@@ -58,6 +58,9 @@
 		}else{  
 		$listinghub_query = new WP_Query( $args );
 	}
+	if ( function_exists( 'listinghub_log_search' ) ) {
+		listinghub_log_search( $listinghub_directory_url, $listinghub_query->found_posts );
+	}
 
 	$search_form_setting='popup';
 	if(isset($active_archive_icon_saved['top_search_form'])){	

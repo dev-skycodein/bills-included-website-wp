@@ -46,25 +46,25 @@ Claim My Agency – implementation steps (high level)
 Data analytics and storage.
 
 Renting behaviour
-[✓] Listing views per session.
-[] Log search queries & filters.
-[] Track contact agent clicks (popup open and/or send).
-[] Store listing_id on listinghub_message when contact form has dir_id (unblocks lead reporting).
-[] Optional: log save/shortlist events.
+[✓] Listing views per session. (Admin analytics; optional per-listing summary for agents.)
+[✓] Log search queries & filters. (Admin only – Analytics → Search & filters.)
+[] Track contact agent clicks (popup open and/or send). (Admin only – track both “View original listing” and “Contact via Bills Included” clicks + sends.)
+[] Store listing_id on listinghub_message when contact form has dir_id (unblocks lead reporting). (Admin-only metrics.)
+[] Optional: log save/shortlist events. (Admin-only analytics; may later surface per listing to agents.)
 
-Listing performance
+Listing performance (Admin only)
 [] Views per listing (already done).
 [] Add listing_id on messages for view-to-lead and time to first enquiry (same as above store step).
 [] Add time-on-listing/agency (JS + endpoint).
 [] Add listing completeness score (define fields and formula).
 
-Agency engagement
+Agency engagement (Admin only)
 [] Track agency claimed / unclaimed / claim start (derivable + optional events).
 [] Listings per agency (query).
 [] Agency logins/sessions (hook wp_login).
 [] Define and log response times and agency actions (edit listing, reply to lead, etc.).
 
-Marketplace health
+Marketplace health (Admin only)
 [] Active listings count (weekly/monthly; define “active”).
 [] Active renters MAU/WAU (decide logged-in only vs anonymous).
 [] Renters & agencies account created (clarify definition).
@@ -77,7 +77,7 @@ Display & reporting (who sees what).
 
 Admin (WP admin / super admin only)
 [] Marketplace health: active listings, MAU/WAU, accounts created, supply–demand by area (e.g. report page or dashboard widget).
-[] Search/filter logs: where renters search (queries, filters) – list or export.
+[✓] Search/filter logs: where renters search (queries, filters) – list or export.
 [] Agency funnel: claimed vs unclaimed agencies; claim starts / approvals (counts or list).
 [] Optional: all listings table with site-wide metrics per row (views, leads) for admins who manage everything.
 
