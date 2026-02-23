@@ -76,6 +76,8 @@
 				//	
 				
 				add_action('template_redirect', array($this, 'listinghub_track_listing_view'), 5);
+				// Run before WooCommerce: prevent WC from stripping key/login and redirecting to lost-password when using our reset link
+				add_action('template_redirect', array( $this, 'listinghub_prevent_woocommerce_reset_redirect' ), 1 );
 				add_action('template_redirect', function () {
 					if (
 						isset($_GET['lh_action']) &&
@@ -199,7 +201,8 @@
 				
 				// 8. Filter	
 				add_filter( 'template_include', array($this, 'listinghub_include_template_function'), 9, 2  );
-				
+				// Prevent redirect from stripping password reset query args (action=rp&key&login)
+				add_filter( 'redirect_canonical', array( $this, 'listinghub_allow_reset_password_url' ), 10, 2 );
 										
 				add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), array( $this, 'listinghub_plugin_action_links' ) );
 				// For elementor
@@ -664,27 +667,78 @@
 				echo json_encode(array("code" => "success","msg"=>esc_html__( 'Updated Successfully', 'listinghub'),"attachment_id"=> $attachment_id,"image_url"=> $image_url ));
 				exit(0);
 			}
+			public function listinghub_allow_reset_password_url( $redirect_url, $requested_url ) {
+				if ( empty( $requested_url ) ) {
+					return $redirect_url;
+				}
+				if ( strpos( $requested_url, 'action=rp' ) !== false && strpos( $requested_url, 'key=' ) !== false ) {
+					return false;
+				}
+				return $redirect_url;
+			}
+
+			/**
+			 * When user clicks our password reset link (action=rp&key&login) on the ListingHub profile page,
+			 * prevent WooCommerce from redirecting to lost-password and stripping the params (WC uses a cookie).
+			 * Our reset form needs key and login in the URL.
+			 */
+			public function listinghub_prevent_woocommerce_reset_redirect() {
+				if ( is_admin() || ! class_exists( 'WC_Form_Handler' ) ) {
+					return;
+				}
+				$profile_page_id = get_option( 'epjblistinghub_profile_page' );
+				if ( ! $profile_page_id || ! is_page( (int) $profile_page_id ) ) {
+					return;
+				}
+				$action = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : '';
+				$key    = isset( $_GET['key'] ) ? sanitize_text_field( wp_unslash( $_GET['key'] ) ) : '';
+				$login  = isset( $_GET['login'] ) ? sanitize_text_field( wp_unslash( $_GET['login'] ) ) : '';
+				if ( $action === 'rp' && $key !== '' && $login !== '' ) {
+					remove_action( 'template_redirect', array( 'WC_Form_Handler', 'redirect_reset_password_link' ), 10 );
+				}
+			}
+
 			public function listinghub_login_func($atts = ''){
 				global $current_user;
-				ob_start();		
-				if($current_user->ID==0){
-					include(ep_listinghub_template. 'private-profile/profile-login.php');
-					}else{	
-					include( ep_listinghub_template. 'private-profile/profile-template-1.php');
-				}	
-				$content = ob_get_clean();	
+				ob_start();
+				$action   = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : '';
+				$rp_key   = isset( $_GET['key'] ) ? sanitize_text_field( wp_unslash( $_GET['key'] ) ) : '';
+				$rp_login = isset( $_GET['login'] ) ? sanitize_text_field( wp_unslash( $_GET['login'] ) ) : '';
+				// Fallback: read from REQUEST_URI when $_GET is empty (e.g. WooCommerce or some servers)
+				if ( ( ! $rp_key || ! $rp_login || $action !== 'rp' ) && ! empty( $_SERVER['REQUEST_URI'] ) && strpos( $_SERVER['REQUEST_URI'], 'action=rp' ) !== false ) {
+					$req = wp_unslash( $_SERVER['REQUEST_URI'] );
+					$qpos = strpos( $req, '?' );
+					if ( $qpos !== false ) {
+						parse_str( substr( $req, $qpos + 1 ), $query_vars );
+						if ( empty( $action ) && ! empty( $query_vars['action'] ) ) {
+							$action = sanitize_text_field( $query_vars['action'] );
+						}
+						if ( empty( $rp_key ) && ! empty( $query_vars['key'] ) ) {
+							$rp_key = sanitize_text_field( $query_vars['key'] );
+						}
+						if ( empty( $rp_login ) && ! empty( $query_vars['login'] ) ) {
+							$rp_login = sanitize_text_field( $query_vars['login'] );
+						}
+					}
+				}
+				if ( $current_user->ID == 0 && $action === 'rp' && $rp_key && $rp_login ) {
+					include( ep_listinghub_template . 'private-profile/profile-reset-password.php' );
+				} elseif ( $current_user->ID == 0 ) {
+					include( ep_listinghub_template . 'private-profile/profile-login.php' );
+				} else {
+					include( ep_listinghub_template . 'private-profile/profile-template-1.php' );
+				}
+				$content = ob_get_clean();
 				return $content;
 			}
 			public function listinghub_forget_password(){
-				parse_str($_POST['form_data'], $data_a);
-				if( ! email_exists($data_a['forget_email']) ) {
-					echo json_encode(array("code" => "not-success","msg"=>"There is no user registered with that email address."));
-					exit(0);
-					} else {
-					require_once( ep_listinghub_ABSPATH. 'inc/forget-mail.php');
-					echo json_encode(array("code" => "success","msg"=>"Updated Successfully"));
-					exit(0);
+				parse_str( $_POST['form_data'], $data_a );
+				$forget_email = isset( $data_a['forget_email'] ) ? sanitize_email( $data_a['forget_email'] ) : '';
+				if ( ! $forget_email || ! email_exists( $forget_email ) ) {
+					wp_send_json( array( 'code' => 'not-success', 'msg' => __( 'There is no user registered with that email address.', 'listinghub' ) ) );
 				}
+				require_once( ep_listinghub_ABSPATH . 'inc/forget-mail.php' );
+				wp_send_json( array( 'code' => 'success', 'msg' => __( 'Updated Successfully', 'listinghub' ), 'email' => $forget_email ) );
 			}
 			public function listinghub_check_login(){
 				parse_str($_POST['form_data'], $form_data);

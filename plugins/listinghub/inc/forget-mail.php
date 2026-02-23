@@ -23,7 +23,13 @@
 
 		$adt_rp_key = get_password_reset_key( $user );
 		$user_login = $user->user_login;
-		$rp_link = '<a href="' . network_site_url("wp-login.php?action=rp&key=$adt_rp_key&login=" . rawurlencode($user_login), 'login') . '">' . network_site_url("wp-login.php?action=rp&key=$adt_rp_key&login=" . rawurlencode($user_login), 'login') . '</a>';
+		// Use the Login page for reset link if it exists (where [listinghub_login] and reset form work); otherwise profile page
+		$login_page = get_page_by_path( 'login', OBJECT, 'page' );
+		$reset_base_page_id = $login_page ? (int) $login_page->ID : (int) get_option( 'epjblistinghub_profile_page' );
+		$rp_url = $reset_base_page_id
+			? add_query_arg( array( 'action' => 'rp', 'key' => $adt_rp_key, 'login' => rawurlencode( $user_login ) ), get_permalink( $reset_base_page_id ) )
+			: network_site_url( "wp-login.php?action=rp&key=$adt_rp_key&login=" . rawurlencode( $user_login ), 'login' );
+		$rp_link = '<a href="' . esc_url( $rp_url ) . '">' . esc_html( $rp_url ) . '</a>';
 	
 	       
 		$email_body = str_replace("[user_name]", $user_info->display_name, $email_body);

@@ -337,21 +337,12 @@
 				}
 				$user->set_role($role_package);
 				update_user_meta($userId, 'listinghub_package_id',$package_id);
-				// success Page
-				$iv_redirect = get_option('epjblistinghub_profile_page');
-				if(trim($iv_redirect)!=''){
-					$reg_page = get_permalink( $iv_redirect );
-
-					// Add success message as query param
-					$redirect_url = add_query_arg( 'message-success', urlencode( 'A verification email has been sent. Please check your inbox to complete registration.' ), $reg_page );
-
-					//wp_clear_auth_cookie();
-					//wp_set_current_user( $user->ID );
-					//wp_set_auth_cookie( $user->ID );
-
-					wp_safe_redirect( "https://thebillsincluded.com/signup-confirmation/?package=".$package_id );
-					exit;
-				}	
+				// Redirect to Signup Thanks (signup-confirmation) using site URL
+				$thank_you_page_id = get_option( 'epjblistinghub_thank_you_page' );
+				$signup_confirm_url = $thank_you_page_id ? get_permalink( (int) $thank_you_page_id ) : home_url( '/signup-confirmation/' );
+				$redirect_url = add_query_arg( 'package', $package_id, $signup_confirm_url );
+				wp_safe_redirect( $redirect_url );
+				exit;	
 			}			
 		}
 	}

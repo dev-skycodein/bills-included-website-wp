@@ -35,11 +35,13 @@ wp_enqueue_style('listinghub_style-login', ep_listinghub_URLPATH . 'admin/files/
         max-width: 60px;
     }
     #login-2 button.uppercase{
+        font-size: 16px;
         width: 160px;
         padding: 12px !important;
     }
     #login-2 a#register-btn{
       padding: 14px !important;
+      font-size: 16px;
     }
     #login-2 .btn-custom{
       font-family: 'Poppins';
@@ -95,10 +97,13 @@ wp_enqueue_style('listinghub_style-login', ep_listinghub_URLPATH . 'admin/files/
       <h3 class="form-title">Welcome back,<br>Please enter your details</h3>
       <?php
         if(isset($_REQUEST['message-success'])){?>
-        <div class="row alert alert-success alert-dismissable" id='loading-2'><a class="panel-close close" data-dismiss="alert">x</a> <?php  echo $_GET['message-success'] ?></div>
+        <div class="row alert alert-success alert-dismissable" id='loading-2'><a class="panel-close close" data-dismiss="alert">x</a> <?php echo esc_html( sanitize_text_field( wp_unslash( $_REQUEST['message-success'] ) ) ); ?></div>
         <?php
         }
-						?>
+		$show_invalid_reset = isset( $_GET['action'] ) && $_GET['action'] === 'rp' && ( empty( $_GET['key'] ) || empty( $_GET['login'] ) );
+		if ( $show_invalid_reset ) : ?>
+        <div class="row alert alert-warning alert-dismissable" id="invalid-reset-alert"><a class="panel-close close" data-dismiss="alert">×</a> <?php esc_html_e( 'This link is invalid or expired. Please request a new password reset below.', 'listinghub' ); ?></div>
+        <?php endif; ?>
       <div class="display-hide" id="error_message">
 
       </div>
@@ -145,7 +150,7 @@ wp_enqueue_style('listinghub_style-login', ep_listinghub_URLPATH . 'admin/files/
     <h3 style="margin-top: 20px !important;"><?php   esc_html_e('Forgot Password','listinghub');?>  </h3>
 	  <div id="forget_message">
 		<p>
-        <?php   esc_html_e('Enter your email address','listinghub');?>
+        <?php   esc_html_e('Enter the email address you used to create the account, and we will email you instructions to reset your password.','listinghub');?>
       </p>
 
       </div>
@@ -169,15 +174,24 @@ wp_enqueue_style('listinghub_style-login', ep_listinghub_URLPATH . 'admin/files/
 <?php
 wp_enqueue_script('listinghub_login', ep_listinghub_URLPATH . 'admin/files/js/login.js');
 wp_localize_script('listinghub_login', 'real_data', array(
-		'ajaxurl' 			=> admin_url( 'admin-ajax.php' ),
-		'loading_image'		=> '<img src="'.ep_listinghub_URLPATH.'admin/files/images/loader.gif">',
-		'current_user_id'	=>get_current_user_id(),
-		'forget_sent'=> esc_html__('Password Sent. Please check your email.','listinghub'),
-		'login_error'=> esc_html__('Invalid Username & Password.','listinghub'),
-		'login_validator'=> esc_html__('Enter Username & Password.','listinghub'),
-		'forget_validator'=> esc_html__('Enter Email Address','listinghub'),
-		
-		) );
-  
-?>	
+		'ajaxurl'                => admin_url( 'admin-ajax.php' ),
+		'loading_image'          => '<img src="'.ep_listinghub_URLPATH.'admin/files/images/loader.gif">',
+		'current_user_id'        => get_current_user_id(),
+		'forget_sent'            => esc_html__( 'We have sent you an email at "__EMAIL__". Check your inbox and follow the instructions to reset your account password.', 'listinghub' ),
+		'forget_sent_placeholder'=> '__EMAIL__',
+		'login_error'            => esc_html__('Invalid Username & Password.','listinghub'),
+		'login_validator'        => esc_html__('Enter Username & Password.','listinghub'),
+		'forget_validator'       => esc_html__('Enter Email Address','listinghub'),
+		'show_forget_form'       => ! empty( $show_invalid_reset ),
+	) );
+?>
+<script>
+jQuery(document).ready(function($){
+	if ( real_data.show_forget_form ) {
+		$('#login_form').hide();
+		$('#forget-password').show();
+	}
+});
+</script>
+<?php
   

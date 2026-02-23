@@ -11,8 +11,20 @@
 	wp_enqueue_style('jquery-ui', ep_listinghub_URLPATH . 'admin/files/css/jquery-ui.css');
 	wp_enqueue_script('colorbox', ep_listinghub_URLPATH . 'admin/files/js/jquery.colorbox-min.js');	
 	wp_enqueue_script('jquery.fancybox',ep_listinghub_URLPATH . 'admin/files/js/jquery.fancybox.js');	
-	wp_enqueue_style('listinghub_single-listing', ep_listinghub_URLPATH . 'admin/files/css/single-listing.css');
-	wp_enqueue_style('listinghub_single-listing-custom', ep_listinghub_URLPATH . 'admin/files/css/single-listing-custom.css', array('listinghub_single-listing'));
+	$single_listing_css = ep_listinghub_ABSPATH . 'admin/files/css/single-listing.css';
+	$single_listing_custom_css = ep_listinghub_ABSPATH . 'admin/files/css/single-listing-custom.css';
+	wp_enqueue_style(
+		'listinghub_single-listing',
+		ep_listinghub_URLPATH . 'admin/files/css/single-listing.css',
+		array(),
+		file_exists( $single_listing_css ) ? (string) filemtime( $single_listing_css ) : null
+	);
+	wp_enqueue_style(
+		'listinghub_single-listing-custom',
+		ep_listinghub_URLPATH . 'admin/files/css/single-listing-custom.css',
+		array( 'listinghub_single-listing' ),
+		file_exists( $single_listing_custom_css ) ? (string) filemtime( $single_listing_custom_css ) : null
+	);
 	
 	$main_class = new eplugins_listinghub;
 	$listinghub_directory_url=get_option('ep_listinghub_url');
@@ -172,6 +184,20 @@
 				</div>
 				<div class="col-lg-5 col-md-12 text-lg-end ">
 					<div class="btn-feature text-right">
+					<?php
+					$show_view_original = false;
+					$source_listing_url = '';
+					$content_post_for_btn = get_post( $listingid );
+					$raw_content_for_btn  = $content_post_for_btn ? $content_post_for_btn->post_content : '';
+					if ( (int) get_post_meta( $listingid, 'agency_post_id', true ) > 0 && trim( (string) $raw_content_for_btn ) !== '' ) {
+						$show_view_original = true;
+						$source_listing_url = get_post_meta( $listingid, 'source_listing_url', true );
+					}
+					if ( $show_view_original ) :
+						$view_original_href = ! empty( $source_listing_url ) ? $source_listing_url : '#';
+						?>
+					<a href="<?php echo esc_url( $view_original_href ); ?>" target="_blank" rel="noopener noreferrer" class="btn btn-big mr-2 mb-2 single-contact-button single-view-original-listing"><?php esc_html_e( 'View original listing', 'listinghub' ); ?></a>
+					<?php endif; ?>
 							<?php
 							$user_ID = get_current_user_id();
 							$favourites='no';
@@ -195,7 +221,7 @@
 							<?php			
 								if(array_key_exists('contact_button',$active_single_fields_saved)){ 				
 							?>
-								<button type="button" class="btn btn-big mr-2 mb-2 " onclick="listinghub_call_popup('<?php echo esc_html($listingid);?>')"><?php esc_html_e( 'Contact', 'listinghub' ); ?></button>
+								<button type="button" class="btn btn-big mr-2 mb-2 single-contact-button" onclick="listinghub_call_popup('<?php echo esc_html($listingid);?>')"><?php esc_html_e( 'Contact via', 'listinghub' ); ?> <img class="contact-image" src="<?php echo esc_url( ep_listinghub_URLPATH . 'admin/files/images/bills-logo.png' ); ?>" alt="<?php esc_attr_e( 'Bills', 'listinghub' ); ?>"></button>
 							<?php
 							}
 							?>
@@ -217,7 +243,7 @@
 									$favorite_icon =str_replace('mr-2','',$favorite_icon );
 								}
 							?>
-							<span id="fav_dir<?php echo esc_html($listingid); ?>">
+							<span id="fav_dir<?php echo esc_html($listingid); ?>" class="single-favorite-button-container">
 								<?php
 									if($favourites=='yes'){ ?>
 									<button class="btn btn-big mb-2" data-placement="left" data-toggle="tooltip" title="<?php esc_html_e('Saved','listinghub'); ?>" href="javascript:;" onclick="listinghub_save_unfavorite('<?php echo esc_attr($listingid); ?>')" >
@@ -325,7 +351,7 @@
 										echo '</div>';
 										break;
 										case "image-gallery": 
-										echo '<div id="section-image-gallery" class="mt-5">';
+										echo '<div id="section-image-gallery">';
 										include(ep_listinghub_template . '/listing/single-template/image-gallery.php');
 										echo '</div>';
 										break;

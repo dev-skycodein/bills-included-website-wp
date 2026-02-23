@@ -26,13 +26,13 @@
 				
 				if(array_key_exists('contact_button',$active_single_fields_saved)){ 
 					if($email_button=='yes'){ ?>
-						<button type="button" class="btn btn-big mr-2 mb-2 " onclick="listinghub_call_popup('<?php echo esc_html($listingid);?>')"><?php esc_html_e( 'Contact', 'listinghub' ); ?></button>
+						<button type="button" class="btn btn-big mr-2 mb-2 single-contact-button" onclick="listinghub_call_popup('<?php echo esc_html($listingid);?>')"><?php esc_html_e( 'Contact via', 'listinghub' ); ?> <img class="contact-image" src="<?php echo esc_url( ep_listinghub_URLPATH . 'admin/files/images/bills-logo.png' ); ?>" alt="<?php esc_attr_e( 'Bills', 'listinghub' ); ?>"></button>
 					<?php
 					}
 				}
 				if(array_key_exists('claim_button',$active_single_fields_saved)){ 
 					 ?>
-						<button type="button" class="btn btn-border mr-2 mt-2 mb-2 " onclick="listinghub_claim_popup('<?php echo esc_html($listingid);?>')"><?php esc_html_e( 'Report', 'listinghub' ); ?></button>
+						<button type="button" class="btn btn-border mr-2 mt-2 mb-2 single-contact-button single-report-button" onclick="listinghub_claim_popup('<?php echo esc_html($listingid);?>')"><?php esc_html_e( 'Report', 'listinghub' ); ?></button>
 					<?php
 					
 				}

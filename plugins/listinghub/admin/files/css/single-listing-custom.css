@@ -110,6 +110,47 @@ html {
 p.included-section-item {
     width: 30%;
 }
+.listing-overview h2,.listing-overview h1{
+	font-size: 22px !important;
+}
+.listing-template-default.single-listing {
+    background: #fafafa;
+}
+.btn-feature button,.btn-feature a {
+    margin: 0 !important;
+}
+.single-contact-button {
+    font-size: 13px !important;
+    padding: 15px 20px !important;
+    margin: 0 !important;
+}
+div#section-description {
+    margin-top: 30px !important;
+}
+.contact-image{
+    height: 18px;
+    margin-left: 5px;
+    margin-top: -6px;
+}
+.single-report-button {
+    padding: 16px 20px !important;
+}
+.single-view-original-listing{
+    font-family: inherit !important;
+    background: #9a6afe !important;
+    box-shadow: unset !important;
+}
+.btn-feature.text-right {
+    margin: 10px 0;
+}
+.single-favorite-button-container button {
+    box-shadow: unset !important;
+    height: 47px;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 47px !important;
+}
 @media (max-width: 600px) {
 	.inluded-section{
 		gap: 10%;
@@ -122,4 +163,27 @@ p.included-section-item {
 	p.included-section-item {
 		width: 100%;
 	}
+}
+@media(max-width: 991px){
+    .btn-feature.text-right {
+        text-align: left;
+    }
+}
+@media (max-width: 767px) {
+	
+    .custom-slider .right-image img {
+        height: 110px;
+    }
+    .social-share{
+        text-align: left !important;
+    }
+}
+@media (max-width: 500px) {
+	
+    .custom-slider .right-image img {
+        height: 95px;
+    }
+    listing-overview {
+        padding: 15px !important;
+    }
 }

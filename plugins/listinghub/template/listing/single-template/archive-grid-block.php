@@ -1,14 +1,27 @@
+<?php
+// Script and style only once per page (this template is included once per card in the loop)
+static $listinghub_archive_slick_printed = false;
+if ( ! $listinghub_archive_slick_printed ) {
+	$listinghub_archive_slick_printed = true;
+	?>
 <script>
 jQuery(document).ready(function($) {
-	$('.gallery-slider').slick({
-		slidesToShow: 1,
-		slidesToScroll: 1,
-		arrows: true,
-		dots: false,
-		infinite: true,
-		speed: 500,
-		autoplay: true,
-		autoplaySpeed: 3000,
+	if (typeof $.fn.slick === 'undefined') return;
+	$('.gallery-slider').each(function() {
+		var $slider = $(this);
+		if ($slider.hasClass('slick-initialized')) return;
+		if ($slider.children().length > 1) {
+			$slider.slick({
+				slidesToShow: 1,
+				slidesToScroll: 1,
+				arrows: true,
+				dots: false,
+				infinite: true,
+				speed: 500,
+				autoplay: false,
+				autoplaySpeed: 3000,
+			});
+		}
 	});
 });
 </script>
@@ -37,7 +50,10 @@ jQuery(document).ready(function($) {
     font-size: 36px;
 }
 </style>
-<div class="col-xl-3 col-lg-4 col-md-6 col-sm-8 col-11 mt-4 mb-4" id="<?php echo esc_html($i); ?>" >
+<?php
+}
+?>
+<div class="col-xl-3 col-lg-4 col-md-6 col-sm-8 col-11 mt-4 mb-4" id="listing-card-<?php echo esc_attr( $id ); ?>">
 		<div class=" card-border-round mb-2 bg-white" >											
 			<?php	
 			$listing_contact_source=get_post_meta($id,'listing_contact_source',true);
@@ -59,7 +75,11 @@ jQuery(document).ready(function($) {
 				$company_email =$user_info->user_email;	
 			}	
 	
-				if(isset($active_archive_fields['image'])){				
+				if(isset($active_archive_fields['image'])){
+					// Enqueue Slick when gallery is used (safe to call in loop; WordPress deduplicates)
+					wp_enqueue_style( 'slick', ep_listinghub_URLPATH . 'admin/files/css/slick/slick.css' );
+					wp_enqueue_style( 'slick-theme', ep_listinghub_URLPATH . 'admin/files/css/slick/slick-theme.css' );
+					wp_enqueue_script( 'slick', ep_listinghub_URLPATH . 'admin/files/css/slick/slick.min.js', array( 'jquery' ), null, true );
 				?>
 				<div class="card-img-container">
                         <?php
@@ -81,7 +101,9 @@ jQuery(document).ready(function($) {
                         }
                         else{
                             ?>
-                            <a href="<?php echo get_the_permalink($id);?>"><img src="<?php echo esc_html($feature_img);?>" class="card-img-top-listing"></a>
+                            <div>
+                                <a href="<?php echo get_the_permalink($id);?>"><img src="<?php echo esc_url( $feature_img ); ?>" class="card-img-top-listing img-fluid rounded mt-0"></a>
+                            </div>
                             <?php
                         }
                         ?>

@@ -19,14 +19,17 @@ function  listinghub_forget_pass(){
      type : "post",
      data : search_params,
      success : function(response){
-      if(response.code=='success'){
-							// redirect
-							jQuery('#forget_message').html('<div class="alert alert-success alert-dismissable"><a class="panel-close close" data-dismiss="alert">x</a>'+real_data.forget_sent+' </div>' );
+      try { if (typeof response === 'string') { response = JSON.parse(response); } } catch (e) {}
+      var email = (response && response.email) ? response.email : (femail || '');
+      if(response && response.code==='success'){
+							var forgetMsg = (real_data.forget_sent || '');
+							var placeholder = (real_data.forget_sent_placeholder !== undefined) ? real_data.forget_sent_placeholder : '__EMAIL__';
+							forgetMsg = forgetMsg.split(placeholder).join(email);
+							jQuery('#forget_message').html('<div class="alert alert-success alert-dismissable"><a class="panel-close close" data-dismiss="alert">×</a> '+forgetMsg+'</div>' );
 						}else{
-							jQuery('#forget_message').html('<div class="alert alert-info alert-dismissable"><a class="panel-close close" data-dismiss="alert">x</a>'+response.msg+'</div>' );
+							var msg = (response && response.msg) ? response.msg : '';
+							jQuery('#forget_message').html('<div class="alert alert-info alert-dismissable"><a class="panel-close close" data-dismiss="alert">×</a> '+msg+'</div>' );
 						}
-
-
 					}
 				});
   }else{

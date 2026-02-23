@@ -341,10 +341,11 @@ iframe {
 }
 
 .listing-overview {
-    border: thin solid var(--max-border-color);
     border-radius: 8px;
-    padding: 20px 30px 30px 30px;
+    padding: 30px !important;
     margin-bottom: 50px;
+    background: #fff;
+    border:1px solid var(--max-border-color);
 }
 .pb-10 {
     padding-bottom: 10px !important;
