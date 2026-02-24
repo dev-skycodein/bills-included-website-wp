@@ -128,9 +128,9 @@
 				self::$pages['listinghub-payment-stripe'] = add_submenu_page('', 'listinghub Payment setting', '', 'manage_options', 'listinghub-payment-stripe', array($this, 'listinghub_stripe_update_page'));
 				self::$pages['listinghub-user_update'] = add_submenu_page('', 'listinghub user_update', '', 'manage_options', 'listinghub-user_update', array($this, 'listinghub_user_update_page'));
 				self::$pages['listinghub-analytics'] = add_submenu_page('listinghub', __('Analytics – Renting behaviour', 'listinghub'), __('Analytics – Renting behaviour', 'listinghub'), 'manage_options', 'listinghub-analytics', array($this, 'listinghub_analytics_page'));
-				self::$pages['listinghub-analytics-performance'] = add_submenu_page('listinghub', __('Analytics – Listing performance', 'listinghub'), __('Listing performance', 'listinghub'), 'manage_options', 'listinghub-analytics-performance', array($this, 'listinghub_analytics_performance_page'));
-				self::$pages['listinghub-analytics-agency'] = add_submenu_page('listinghub', __('Analytics – Agency engagement', 'listinghub'), __('Agency engagement', 'listinghub'), 'manage_options', 'listinghub-analytics-agency', array($this, 'listinghub_analytics_agency_page'));
-				self::$pages['listinghub-analytics-marketplace'] = add_submenu_page('listinghub', __('Analytics – Marketplace health', 'listinghub'), __('Marketplace health', 'listinghub'), 'manage_options', 'listinghub-analytics-marketplace', array($this, 'listinghub_analytics_marketplace_page'));
+				self::$pages['listinghub-analytics-performance'] = add_submenu_page('listinghub', __('Analytics – Listing performance', 'listinghub'), __('Analytics – Listing performance', 'listinghub'), 'manage_options', 'listinghub-analytics-performance', array($this, 'listinghub_analytics_performance_page'));
+				self::$pages['listinghub-analytics-agency'] = add_submenu_page('listinghub', __('Analytics – Agency engagement', 'listinghub'), __('Analytics – Agency engagement', 'listinghub'), 'manage_options', 'listinghub-analytics-agency', array($this, 'listinghub_analytics_agency_page'));
+				self::$pages['listinghub-analytics-marketplace'] = add_submenu_page('listinghub', __('Analytics – Marketplace health', 'listinghub'), __('Analytics – Marketplace health', 'listinghub'), 'manage_options', 'listinghub-analytics-marketplace', array($this, 'listinghub_analytics_marketplace_page'));
 			}
 			/**
 				* Menu Page Router

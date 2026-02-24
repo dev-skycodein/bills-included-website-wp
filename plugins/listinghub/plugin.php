@@ -220,6 +220,8 @@
 				add_action('init', array($this, 'listinghub_all_functions'));
 				add_action( 'init', array($this, 'listinghub_maybe_create_search_log_table'), 0 );
 				add_action( 'init', array($this, 'listinghub_maybe_create_contact_log_table'), 0 );
+				add_action( 'init', array($this, 'listinghub_maybe_create_view_log_table'), 0 );
+				add_action( 'init', array($this, 'listinghub_maybe_create_contact_log_table'), 0 );
 				add_action( 'wp_loaded', array($this, 'listinghub_woocommerce_form_submit') );
 				add_action( 'init', array($this, 'ep_listinghub_cpt_columns') );
 				// Add color script
@@ -245,12 +247,15 @@
 			const SEARCH_LOG_TABLE_SCHEMA_VERSION  = 1;
 			/** Current schema version for the contact log table. Bump when table structure changes. */
 			const CONTACT_LOG_TABLE_SCHEMA_VERSION = 1;
+			/** Current schema version for the view log table. Bump when table structure changes. */
+			const VIEW_LOG_TABLE_SCHEMA_VERSION    = 2;
 
 			private function define_constants() {
 				if (!defined('ep_listinghub_BASENAME')) define('ep_listinghub_BASENAME', plugin_basename(__FILE__));
 				if (!defined('ep_listinghub_DIR')) define('ep_listinghub_DIR', dirname(__FILE__));
 				if (!defined('ep_listinghub_SEARCH_LOG_TABLE')) define('ep_listinghub_SEARCH_LOG_TABLE', 'listinghub_search_log');
 				if (!defined('ep_listinghub_CONTACT_LOG_TABLE')) define('ep_listinghub_CONTACT_LOG_TABLE', 'listinghub_contact_log');
+				if (!defined('ep_listinghub_VIEW_LOG_TABLE')) define('ep_listinghub_VIEW_LOG_TABLE', 'listinghub_view_log');
 				if (!defined('ep_listinghub_FOLDER'))define('ep_listinghub_FOLDER', plugin_basename(dirname(__FILE__)));
 				if (!defined('ep_listinghub_ABSPATH'))define('ep_listinghub_ABSPATH', trailingslashit(str_replace("\\", "/", WP_PLUGIN_DIR . '/' . plugin_basename(dirname(__FILE__)))));
 				if (!defined('ep_listinghub_URLPATH'))define('ep_listinghub_URLPATH', trailingslashit(plugins_url() . '/' . plugin_basename(dirname(__FILE__))));
@@ -309,6 +314,12 @@
 			 * Runs on template_redirect so cookies can be set before any output.
 			 */
 			public function listinghub_track_listing_view() {
+				static $did = false;
+				if ( $did ) {
+					return;
+				}
+				$did = true;
+
 				$listing_type = get_option( 'ep_listinghub_url', 'listing' );
 				if ( $listing_type === '' ) {
 					$listing_type = 'listing';
@@ -334,26 +345,43 @@
 				update_post_meta( $listing_id, 'listing_views_count', $total + 1 );
 
 				// Session view: only count once per browser session per listing (cookie-based).
-				$cookie_name = 'listinghub_sess_views';
-				$max_ids    = 200;
-				$seen       = array();
+				$cookie_name      = 'listinghub_sess_views';
+				$max_ids          = 200;
+				$seen             = array();
+				$is_session_view  = 0;
 				if ( ! empty( $_COOKIE[ $cookie_name ] ) ) {
-					$raw = sanitize_text_field( wp_unslash( $_COOKIE[ $cookie_name ] ) );
+					$raw  = sanitize_text_field( wp_unslash( $_COOKIE[ $cookie_name ] ) );
 					$seen = array_filter( array_map( 'absint', explode( ',', $raw ) ) );
 				}
 				if ( ! in_array( $listing_id, $seen, true ) ) {
 					$session_count = (int) get_post_meta( $listing_id, 'listing_views_session_count', true );
 					update_post_meta( $listing_id, 'listing_views_session_count', $session_count + 1 );
-					$seen[] = $listing_id;
-					$seen   = array_slice( array_unique( $seen ), -$max_ids );
-					$value  = implode( ',', $seen );
-					$expiry = 0; // Session cookie (until browser closes).
+
+					$seen[]          = $listing_id;
+					$seen            = array_slice( array_unique( $seen ), -$max_ids );
+					$value           = implode( ',', $seen );
+					$expiry          = 0; // Session cookie (until browser closes).
+					$is_session_view = 1;
 					if ( PHP_VERSION_ID >= 70300 ) {
 						setcookie( $cookie_name, $value, array( 'expires' => $expiry, 'path' => '/', 'samesite' => 'Lax', 'secure' => is_ssl() ) );
 					} else {
 						setcookie( $cookie_name, $value, $expiry, '/; samesite=Lax' );
 					}
 				}
+
+				// Log every view into the dedicated analytics table, with a flag for session-unique views.
+				global $wpdb;
+				$view_table_name = defined( 'ep_listinghub_VIEW_LOG_TABLE' ) ? ep_listinghub_VIEW_LOG_TABLE : 'listinghub_view_log';
+				$view_table      = $wpdb->prefix . $view_table_name;
+				$wpdb->insert(
+					$view_table,
+					array(
+						'created'    => current_time( 'mysql' ),
+						'listing_id' => (int) $listing_id,
+						'is_session' => (int) $is_session_view,
+					),
+					array( '%s', '%d', '%d' )
+				);
 			}
 
 			public function listinghub_create_taxonomy_category() {
@@ -2727,6 +2755,42 @@
 				$exists_after = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
 				if ( $exists_after === $table ) {
 					update_option( 'listinghub_contact_log_schema_version', self::CONTACT_LOG_TABLE_SCHEMA_VERSION );
+				}
+			}
+
+			/**
+			 * Ensure view log table exists. Runs on init (schema version check).
+			 * This table powers time‑range filters for listing views in Analytics (admin only).
+			 */
+			public function listinghub_maybe_create_view_log_table() {
+				global $wpdb;
+				$table_name = defined( 'ep_listinghub_VIEW_LOG_TABLE' ) ? ep_listinghub_VIEW_LOG_TABLE : 'listinghub_view_log';
+				$table      = $wpdb->prefix . $table_name;
+				$exists     = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
+				// If table already exists, ensure option is set and we're done.
+				if ( $exists === $table ) {
+					update_option( 'listinghub_view_log_schema_version', self::VIEW_LOG_TABLE_SCHEMA_VERSION );
+					return;
+				}
+
+				$charset = $wpdb->get_charset_collate();
+				$sql     = "CREATE TABLE {$table} (
+					id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+					created datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+					listing_id bigint(20) unsigned NOT NULL DEFAULT '0',
+					is_session tinyint(1) unsigned NOT NULL DEFAULT '0',
+					PRIMARY KEY  (id),
+					KEY created (created),
+					KEY listing_id (listing_id),
+					KEY is_session (is_session)
+				) {$charset};";
+
+				require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+				dbDelta( $sql );
+
+				$exists_after = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
+				if ( $exists_after === $table ) {
+					update_option( 'listinghub_view_log_schema_version', self::VIEW_LOG_TABLE_SCHEMA_VERSION );
 				}
 			}
 

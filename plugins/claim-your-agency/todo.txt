@@ -53,7 +53,7 @@ Renting behaviour
 [X] Optional: log save/shortlist events. (Admin-only analytics; may later surface per listing to agents.)
 
 Listing performance (Admin only)
-[] Views per listing (already done).
+[✓] Views per listing, with timeperiod functionality added with seperate table.
 [] Add listing_id on messages for view-to-lead and time to first enquiry (same as above store step).
 [] Add time-on-listing/agency (JS + endpoint).
 [] Add listing completeness score (define fields and formula).
