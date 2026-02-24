@@ -50,7 +50,7 @@ Renting behaviour
 [✓] Log search queries & filters. (Admin only – Analytics → Search & filters.)
 [✓] Track contact agent clicks (popup open and/or send). (Admin only – track both “View original listing” and “Contact via Bills Included” clicks + sends.)
 [✓] Store listing_id on listinghub_message when contact form has dir_id (unblocks lead reporting). (Admin-only metrics.)
-[] Optional: log save/shortlist events. (Admin-only analytics; may later surface per listing to agents.)
+[X] Optional: log save/shortlist events. (Admin-only analytics; may later surface per listing to agents.)
 
 Listing performance (Admin only)
 [] Views per listing (already done).
