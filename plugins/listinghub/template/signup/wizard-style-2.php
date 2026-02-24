@@ -225,7 +225,7 @@
 						</div>
 						<div class="package-switch-item">
 							<a class="<?=$package_acive2?>" href="<?php echo home_url(); ?>/registration/?package_id=3309">
-								I'm a agency
+								I'm an agency
 							</a>
 						</div>
 					</div>

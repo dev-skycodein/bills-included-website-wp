@@ -164,7 +164,7 @@
 			<?php
 			}
 			?>
-			<div class="row mt-2">
+			<div class="row mt-4">
 				<div class="col-lg-7 col-md-12 mb-2">					
 					<?php
 					if (array_key_exists('title', $active_single_fields_saved)) {
@@ -264,10 +264,9 @@
 						?>
 					</div>		
 				</div>
-			</div>
-			<div class="border-bottom mt-0 mb-0"></div>       
+			</div>      
 		</section>
-		<div class="row mt-5">
+		<div class="row mt-2">
 			<div class="col-lg-8 col-md-12 col-sm-12 col-12">				
 			
 				<div class="listing-overview">

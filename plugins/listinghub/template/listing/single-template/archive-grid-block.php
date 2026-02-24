@@ -158,8 +158,21 @@ jQuery(document).ready(function($) {
 									<a href="<?php echo get_permalink($id); ?>" class="title m-0 p-0">
 										<?php echo esc_html($post->post_title);?>
 									</a>
+									<?php
+									$listing_postcode = get_post_meta( $id, 'postcode', true );
+									if ( $listing_postcode !== '' ) {
+									?>
+									<p class="address postcode mb-0 mt-1">
+										<?php echo esc_html( $listing_postcode ); ?>
+									</p>
+									<?php
+									}
+									?>
 								<div class="card-body-inner">
 								<?php
+									break;
+									case "postcode":
+									// Postcode is shown after title above; skip here to avoid duplicate
 									break;
 									case "tag":
 									$tag_name='';
@@ -319,7 +332,7 @@ jQuery(document).ready(function($) {
 											$custom_meta_data=$full_data;
 										}
 									?>
-									<p class="address custom-meta-data">
+									<p class="address custom-meta-data <?php echo esc_attr( $field_key ); ?>">
 										<i class="<?php echo esc_html($saved_icon); ?>"></i><?php echo esc_html($custom_meta_data);?>
 									</p>
 									<?php	

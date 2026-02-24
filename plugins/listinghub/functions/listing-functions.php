@@ -111,7 +111,8 @@ if (!function_exists('listinghub_get_listing_fields_all')) {
 				$available_fields_main['post_date']='Post Date';	
 				$available_fields_main['contact_email']='Contact Email';	
 				$available_fields_main['phone']='Phone';
-				$available_fields_main['address']='Address';	
+				$available_fields_main['address']='Address';
+				$available_fields_main['postcode']='Postcode';
 				$available_fields_main['post_date']='Post Date';	
 				$available_fields_main['web_link']='Web Link Button';	
 				$available_fields_main['contact_button']='Contact Button';				
