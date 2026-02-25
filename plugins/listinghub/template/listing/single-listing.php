@@ -499,7 +499,7 @@
 												class="btn btn-border btn-big mt-1 cya-claim-agency-button"
 												onclick="bia_open_claim_agency_popup(this,'<?php echo esc_attr( (string) $agency_post_id ); ?>','<?php echo esc_attr( $listingid ); ?>')"
 											>
-												<?php esc_html_e( 'Claim Your Profile', 'listinghub' ); ?>
+												<?php esc_html_e( 'Claim your profile', 'listinghub' ); ?>
 											</button>
 										</div>
 										<?php elseif ( $agency_post_id && $agency_owner !== 0 ) : ?>
