@@ -59,7 +59,7 @@ Listing performance (Admin only)
 [✓] Add listing completeness score (define fields and formula).
 
 Agency engagement (Admin only)
-[] Track agency claimed / unclaimed / claim start (derivable + optional events).
+[✓] Track agency claimed / unclaimed / claim start.
 [] Listings per agency (query).
 [] Agency logins/sessions (hook wp_login).
 [] Define and log response times and agency actions (edit listing, reply to lead, etc.).
