@@ -165,9 +165,63 @@ if ( ! empty( $completeness_rows ) ) {
 	);
 }
 
-// Sub-tabs within Listing performance: views | completeness.
+// Time to first enquiry: compute per listing (lifetime, based on first listinghub_message with listing_id meta).
+$first_enquiry_rows = array();
+$posts_table        = $wpdb->posts;
+$postmeta_table     = $wpdb->postmeta;
+
+$sql_fe = $wpdb->prepare(
+	"SELECT pm.meta_value AS listing_id, MIN(p.post_date_gmt) AS first_enquiry_gmt
+	 FROM {$posts_table} p
+	 INNER JOIN {$postmeta_table} pm ON p.ID = pm.post_id
+	 WHERE p.post_type = %s
+	   AND p.post_status = 'private'
+	   AND pm.meta_key = 'listing_id'
+	 GROUP BY pm.meta_value",
+	'listinghub_message'
+);
+$fe_rows = $wpdb->get_results( $sql_fe, ARRAY_A );
+
+if ( ! empty( $fe_rows ) ) {
+	foreach ( $fe_rows as $row ) {
+		$listing_id = (int) $row['listing_id'];
+		if ( $listing_id <= 0 ) {
+			continue;
+		}
+		$listing = get_post( $listing_id );
+		if ( ! $listing || $listing->post_type !== $listing_type ) {
+			continue;
+		}
+
+		$created_ts       = get_post_time( 'U', true, $listing );
+		$first_enquiry_ts = $row['first_enquiry_gmt'] ? mysql2date( 'U', $row['first_enquiry_gmt'], true ) : 0;
+		if ( ! $created_ts || ! $first_enquiry_ts ) {
+			continue;
+		}
+
+		$diff_seconds = max( 0, (int) $first_enquiry_ts - (int) $created_ts );
+
+		$first_enquiry_rows[] = array(
+			'listing_id'      => $listing_id,
+			'created_ts'      => $created_ts,
+			'first_ts'        => $first_enquiry_ts,
+			'diff_seconds'    => $diff_seconds,
+		);
+	}
+}
+
+if ( ! empty( $first_enquiry_rows ) ) {
+	usort(
+		$first_enquiry_rows,
+		static function ( $a, $b ) {
+			return $a['diff_seconds'] <=> $b['diff_seconds'];
+		}
+	);
+}
+
+// Sub-tabs within Listing performance: views | completeness | first_enquiry.
 $subtab          = isset( $_GET['subtab'] ) ? sanitize_text_field( wp_unslash( $_GET['subtab'] ) ) : 'views';
-$allowed_subtabs = array( 'views', 'completeness' );
+$allowed_subtabs = array( 'views', 'completeness', 'first_enquiry' );
 if ( ! in_array( $subtab, $allowed_subtabs, true ) ) {
 	$subtab = 'views';
 }
@@ -184,6 +238,7 @@ include 'header.php';
 			<div class="nav-tab-wrapper mb-3">
 				<a href="<?php echo esc_url( add_query_arg( 'subtab', 'views', $base_url ) ); ?>" class="nav-tab <?php echo $subtab === 'views' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'Views', 'listinghub' ); ?></a>
 				<a href="<?php echo esc_url( add_query_arg( 'subtab', 'completeness', $base_url ) ); ?>" class="nav-tab <?php echo $subtab === 'completeness' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'Completeness score', 'listinghub' ); ?></a>
+				<a href="<?php echo esc_url( add_query_arg( 'subtab', 'first_enquiry', $base_url ) ); ?>" class="nav-tab <?php echo $subtab === 'first_enquiry' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'Time to first enquiry', 'listinghub' ); ?></a>
 			</div>
 
 			<?php if ( $subtab === 'views' ) : ?>
@@ -284,6 +339,52 @@ include 'header.php';
 											<div style="background:#2e7ff5;width:<?php echo esc_attr( $score ); ?>%;height:100%;"></div>
 										</div>
 										<strong><?php echo esc_html( (string) $score ); ?>%</strong>
+									</td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+				<?php endif; ?>
+			<?php elseif ( $subtab === 'first_enquiry' ) : ?>
+				<p class="description">
+					<?php esc_html_e( 'Time between listing creation and the first contact form submission (via “Contact via Bills” popup).', 'listinghub' ); ?>
+				</p>
+
+				<?php if ( empty( $first_enquiry_rows ) ) : ?>
+					<p><?php esc_html_e( 'No enquiries found yet to calculate this metric.', 'listinghub' ); ?></p>
+				<?php else : ?>
+					<table class="wp-list-table widefat fixed striped">
+						<thead>
+							<tr>
+								<th scope="col"><?php esc_html_e( 'Listing', 'listinghub' ); ?></th>
+								<th scope="col"><?php esc_html_e( 'Time to first enquiry', 'listinghub' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $first_enquiry_rows as $item ) : ?>
+								<?php
+								$listing_id   = (int) $item['listing_id'];
+								$title        = get_the_title( $listing_id );
+								$link         = get_edit_post_link( $listing_id, 'raw' );
+								$created_ts   = (int) $item['created_ts'];
+								$first_ts     = (int) $item['first_ts'];
+								$diff_seconds = (int) $item['diff_seconds'];
+								$human_diff   = $diff_seconds > 0 ? human_time_diff( $created_ts, $first_ts ) : __( '0 seconds', 'listinghub' );
+								?>
+								<tr>
+									<td>
+										<?php
+										if ( $link && $title ) {
+											echo '<a href="' . esc_url( $link ) . '">' . esc_html( $title ) . ' (#' . (int) $listing_id . ')</a>';
+										} elseif ( $title ) {
+											echo esc_html( $title ) . ' (#' . (int) $listing_id . ')';
+										} else {
+											echo '#' . (int) $listing_id;
+										}
+										?>
+									</td>
+									<td>
+										<strong><?php echo esc_html( $human_diff ); ?></strong>
 									</td>
 								</tr>
 							<?php endforeach; ?>

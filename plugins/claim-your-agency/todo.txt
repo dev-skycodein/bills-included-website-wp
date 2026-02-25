@@ -55,7 +55,7 @@ Renting behaviour
 Listing performance (Admin only)
 [✓] Views per listing, with timeperiod functionality added with seperate table.
 [X] Add time-on-listing/agency (JS + endpoint).
-[] Time to first enquiry to each listing.
+[✓] Time to first enquiry to each listing.
 [✓] Add listing completeness score (define fields and formula).
 
 Agency engagement (Admin only)
