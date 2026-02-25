@@ -60,8 +60,8 @@ Listing performance (Admin only)
 
 Agency engagement (Admin only)
 [✓] Track agency claimed / unclaimed / claim start.
-[] Listings per agency (query).
-[] Agency logins/sessions (hook wp_login).
+[✓] Listings per agency (query).
+[✓] Agency logins/sessions (hook wp_login).
 [] Define and log response times and agency actions (edit listing, reply to lead, etc.).
 
 Marketplace health (Admin only)
