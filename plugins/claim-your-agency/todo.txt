@@ -62,7 +62,7 @@ Agency engagement (Admin only)
 [✓] Track agency claimed / unclaimed / claim start.
 [✓] Listings per agency (query).
 [✓] Agency logins/sessions (hook wp_login).
-[] Actions taken by agency (edit listing, reply to lead, etc.).
+[✓] Actions taken by agency (edit listing, reply to lead, etc.).
 
 Marketplace health (Admin only)
 [] Active listings count (weekly/monthly; define “active”).
