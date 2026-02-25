@@ -170,7 +170,9 @@
 				add_action('wp_ajax_nopriv_listinghub_chatgpt_post_creator', array($this, 'listinghub_chatgpt_post_creator'));
 				// Log agency owner logins for Analytics → Agency engagement.
 				add_action( 'wp_login', array( $this, 'listinghub_log_agency_login' ), 10, 2 );
-				
+				// Generic hook for agency activity events coming from other plugins (e.g. Claim Your Agency).
+				add_action( 'listinghub_agency_activity', array( $this, 'listinghub_handle_agency_activity' ), 10, 3 );
+
 				add_action('add_meta_boxes', array($this, 'listinghub_custom_meta_listinghub'));
 				add_action('save_post', array($this, 'listinghub_meta_save'));	
 								
@@ -224,6 +226,7 @@
 				add_action( 'init', array($this, 'listinghub_maybe_create_contact_log_table'), 0 );
 				add_action( 'init', array($this, 'listinghub_maybe_create_view_log_table'), 0 );
 				add_action( 'init', array($this, 'listinghub_maybe_create_agency_login_log_table'), 0 );
+				add_action( 'init', array($this, 'listinghub_maybe_create_agency_activity_log_table'), 0 );
 				add_action( 'wp_loaded', array($this, 'listinghub_woocommerce_form_submit') );
 				add_action( 'init', array($this, 'ep_listinghub_cpt_columns') );
 				// Add color script
@@ -253,6 +256,8 @@
 			const VIEW_LOG_TABLE_SCHEMA_VERSION    = 2;
 			/** Current schema version for the agency login log table. Bump when table structure changes. */
 			const AGENCY_LOGIN_LOG_TABLE_SCHEMA_VERSION = 1;
+			/** Current schema version for the agency activity log table. Bump when table structure changes. */
+			const AGENCY_ACTIVITY_LOG_TABLE_SCHEMA_VERSION = 1;
 
 			private function define_constants() {
 				if (!defined('ep_listinghub_BASENAME')) define('ep_listinghub_BASENAME', plugin_basename(__FILE__));
@@ -261,6 +266,7 @@
 				if (!defined('ep_listinghub_CONTACT_LOG_TABLE')) define('ep_listinghub_CONTACT_LOG_TABLE', 'listinghub_contact_log');
 				if (!defined('ep_listinghub_VIEW_LOG_TABLE')) define('ep_listinghub_VIEW_LOG_TABLE', 'listinghub_view_log');
 				if (!defined('ep_listinghub_AGENCY_LOGIN_LOG_TABLE')) define('ep_listinghub_AGENCY_LOGIN_LOG_TABLE', 'listinghub_agency_login_log');
+				if (!defined('ep_listinghub_AGENCY_ACTIVITY_LOG_TABLE')) define('ep_listinghub_AGENCY_ACTIVITY_LOG_TABLE', 'listinghub_agency_activity_log');
 				if (!defined('ep_listinghub_FOLDER'))define('ep_listinghub_FOLDER', plugin_basename(dirname(__FILE__)));
 				if (!defined('ep_listinghub_ABSPATH'))define('ep_listinghub_ABSPATH', trailingslashit(str_replace("\\", "/", WP_PLUGIN_DIR . '/' . plugin_basename(dirname(__FILE__)))));
 				if (!defined('ep_listinghub_URLPATH'))define('ep_listinghub_URLPATH', trailingslashit(plugins_url() . '/' . plugin_basename(dirname(__FILE__))));
@@ -617,6 +623,52 @@
 						'agency_post_id'=> $agency_post_id,
 					),
 					array( '%s', '%d', '%d' )
+				);
+			}
+
+			/**
+			 * Handle generic agency activity events and log them into the agency activity log table.
+			 *
+			 * @param string $action         Activity type slug (e.g. edit_agency_profile, manage_enquiries).
+			 * @param int    $agency_post_id Agency post ID (gsli_agency).
+			 * @param int    $user_id        WordPress user ID.
+			 */
+			public function listinghub_handle_agency_activity( $action, $agency_post_id, $user_id ) {
+				static $did = array();
+
+				$action         = sanitize_key( (string) $action );
+				$agency_post_id = (int) $agency_post_id;
+				$user_id        = (int) $user_id;
+
+				if ( $action === '' || $agency_post_id <= 0 || $user_id <= 0 ) {
+					return;
+				}
+
+				// Guard against duplicate logging when multiple instances of this class are hooked.
+				$key = $action . '|' . $agency_post_id . '|' . $user_id;
+				if ( isset( $did[ $key ] ) ) {
+					return;
+				}
+				$did[ $key ] = true;
+
+				global $wpdb;
+				$table_name = defined( 'ep_listinghub_AGENCY_ACTIVITY_LOG_TABLE' ) ? ep_listinghub_AGENCY_ACTIVITY_LOG_TABLE : 'listinghub_agency_activity_log';
+				$table      = $wpdb->prefix . $table_name;
+
+				// Bail if table does not exist yet.
+				if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) ) !== $table ) {
+					return;
+				}
+
+				$wpdb->insert(
+					$table,
+					array(
+						'created'       => current_time( 'mysql' ),
+						'user_id'       => $user_id,
+						'agency_post_id'=> $agency_post_id,
+						'action'        => substr( $action, 0, 64 ),
+					),
+					array( '%s', '%d', '%d', '%s' )
 				);
 			}
 			public function listinghub_chatgtp_settings_popup(){
@@ -2905,6 +2957,43 @@
 			}
 
 			/**
+			 * Ensure agency activity log table exists. Runs on init (schema version check).
+			 * Used for Analytics → Agency engagement (Agents activity log).
+			 */
+			public function listinghub_maybe_create_agency_activity_log_table() {
+				global $wpdb;
+				$table_name = defined( 'ep_listinghub_AGENCY_ACTIVITY_LOG_TABLE' ) ? ep_listinghub_AGENCY_ACTIVITY_LOG_TABLE : 'listinghub_agency_activity_log';
+				$table      = $wpdb->prefix . $table_name;
+				$exists     = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
+				if ( $exists === $table ) {
+					update_option( 'listinghub_agency_activity_log_schema_version', self::AGENCY_ACTIVITY_LOG_TABLE_SCHEMA_VERSION );
+					return;
+				}
+
+				$charset = $wpdb->get_charset_collate();
+				$sql     = "CREATE TABLE {$table} (
+					id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+					created datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+					user_id bigint(20) unsigned NOT NULL DEFAULT '0',
+					agency_post_id bigint(20) unsigned NOT NULL DEFAULT '0',
+					action varchar(64) NOT NULL DEFAULT '',
+					PRIMARY KEY  (id),
+					KEY created (created),
+					KEY user_id (user_id),
+					KEY agency_post_id (agency_post_id),
+					KEY action (action)
+				) {$charset};";
+
+				require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+				dbDelta( $sql );
+
+				$exists_after = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
+				if ( $exists_after === $table ) {
+					update_option( 'listinghub_agency_activity_log_schema_version', self::AGENCY_ACTIVITY_LOG_TABLE_SCHEMA_VERSION );
+				}
+			}
+
+			/**
 				* Called every time the plug-in is activated.
 			*/
 			public function activate() {				
@@ -3735,8 +3824,17 @@
 						$listing_id_for_message = (int) $dir_id;
 						$dir_detail= get_post($dir_id); 
 						$dir_title= '<a href="'.get_permalink($dir_id).'">'.$dir_detail->post_title.'</a>';
-						$user_id=$dir_detail->post_author;
-						$user_info = get_userdata( $user_id);
+						// Default recipient is the listing author.
+						$user_id = (int) $dir_detail->post_author;
+						// If listing is linked to an agency that has an owner, prefer the agency owner.
+						$agency_post_id = (int) get_post_meta( $dir_id, 'agency_post_id', true );
+						if ( $agency_post_id > 0 ) {
+							$agency_owner = (int) get_post_meta( $agency_post_id, 'agency_owner', true );
+							if ( $agency_owner > 0 ) {
+								$user_id = $agency_owner;
+							}
+						}
+						$user_info = get_userdata( $user_id );
 						$client_email_address =$user_info->user_email;
 						$userid_to=$user_id;
 					}

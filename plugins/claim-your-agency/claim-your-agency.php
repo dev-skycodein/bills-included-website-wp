@@ -1675,6 +1675,9 @@ function cya_agency_update_profile() {
 	// Mark that the owner set the logo so re-scrape / importer does not overwrite it.
 	update_post_meta( $agency_post_id, 'agency_logo_edited_by_owner', 1 );
 
+	// Log this as an agency profile edit activity for analytics (if Listing Hub is active).
+	do_action( 'listinghub_agency_activity', 'edit_agency_profile', $agency_post_id, get_current_user_id() );
+
 	wp_send_json_success( array( 'message' => __( 'Profile saved.', 'claim-your-agency' ) ) );
 }
 add_action( 'wp_ajax_cya_agency_update_profile', 'cya_agency_update_profile' );

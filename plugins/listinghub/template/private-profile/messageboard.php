@@ -1,6 +1,15 @@
 <div class="border-bottom pb-15 mb-3 toptitle-sub"><?php esc_html_e('Message', 'listinghub'); ?>
 </div>
 <?php
+	// Log that the agency owner is managing enquiries (visiting the messageboard).
+	$current_user = wp_get_current_user();
+	if ( $current_user && $current_user->ID > 0 && function_exists( 'cya_get_agency_post_id_for_user' ) ) {
+		$agency_post_id = cya_get_agency_post_id_for_user( $current_user->ID );
+		if ( $agency_post_id > 0 ) {
+			do_action( 'listinghub_agency_activity', 'manage_enquiries', $agency_post_id, $current_user->ID );
+		}
+	}
+
 	$args = array(
 	'post_type' => 'listinghub_message', 
 	'post_status' => 'private',
