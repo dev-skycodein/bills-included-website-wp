@@ -391,6 +391,11 @@
 					?>
 				
 				</div>
+				<style>
+					.agency-sidebar .img-col {
+						padding: 0px 0px !important;
+					}
+				</style>
 				
 				 <?php
 					include(ep_listinghub_template . '/listing/single-template/footer_share.php');  
@@ -398,12 +403,14 @@
 			</div>
 			<div class="col-lg-4 col-md-12 col-sm-12 col-12 pl-40 pl-lg-15 mt-lg-30">
 				
-				<div class="sidebar-border">
+				<div class="sidebar-border agency-sidebar">
 					<?php
 					if(array_key_exists('author_info',$active_single_fields_saved)){ 
+						$agency_post_id = (int) get_post_meta( $listingid, 'agency_post_id', true );
+						$agency_owner   = $agency_post_id ? (int) get_post_meta( $agency_post_id, 'agency_owner', true ) : 0;
 					?>
 						<div class="row mb-4">					
-							<div class="col-4">
+							<div class="col-4 img-col">
 								<?php			
 								if(array_key_exists('company-logo',$active_single_fields_saved)){ 
 									if(trim($company_logo)!=''){
@@ -416,6 +423,13 @@
 									}
 								}
 								?>
+								<?php if ( $agency_post_id && $agency_owner === 0 ) : ?>
+									<style>.agency-sidebar .img-col .cya-claim-agency-button{padding:10px 6px !important;font-size:11px !important;}</style>
+									<button type="button" class="btn btn-border btn-big mt-1 w-100 cya-claim-agency-button" onclick="bia_open_claim_agency_popup(this,'<?php echo esc_attr( (string) $agency_post_id ); ?>','<?php echo esc_attr( $listingid ); ?>')"><?php esc_html_e( 'Claim your profile', 'listinghub' ); ?></button>
+								<?php elseif ( $agency_post_id && $agency_owner !== 0 ) : ?>
+									<style>.cya-profile-claimed-badge{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;font-size:13px;font-weight:600;color:#065f46;background:#d1fae5;border:1px solid #a7f3d0;border-radius:6px;}</style>
+									<div class="mt-2"><span class="cya-profile-claimed-badge"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3Z" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.71423 11.6223L11.2436 15L16.2857 9" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <?php esc_html_e( 'Claimed Profile', 'listinghub' ); ?></span></div>
+								<?php endif; ?>
 							</div>
 								
 							<div class="col-8">
@@ -439,9 +453,6 @@
 												<span class="card-location mt-2"><i class="fa-solid fa-location-dot mr-2"></i><?php echo esc_html($company_locations); ?></span>
 												<?php
 												}
-
-												$agency_post_id = (int) get_post_meta( $listingid, 'agency_post_id', true );
-												$agency_owner   = $agency_post_id ? (int) get_post_meta( $agency_post_id, 'agency_owner', true ) : 0;
 
 												// Count listings differently when this listing is tied to an unclaimed agency.
 												if ( $agency_post_id ) {
@@ -487,27 +498,6 @@
 									</div>	
 									
 							</div>
-							<?php
-										if ( $agency_post_id && $agency_owner === 0 ) :
-										?>
-										<style>
-											.cya-claim-agency-button { font-size: 14px !important; }
-										</style>
-										<div class="col-12 mt-3">
-											<button
-												type="button"
-												class="btn btn-border btn-big mt-1 cya-claim-agency-button"
-												onclick="bia_open_claim_agency_popup(this,'<?php echo esc_attr( (string) $agency_post_id ); ?>','<?php echo esc_attr( $listingid ); ?>')"
-											>
-												<?php esc_html_e( 'Claim your profile', 'listinghub' ); ?>
-											</button>
-										</div>
-										<?php elseif ( $agency_post_id && $agency_owner !== 0 ) : ?>
-										<style>.cya-profile-claimed-badge{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;font-size:13px;font-weight:600;color:#065f46;background:#d1fae5;border:1px solid #a7f3d0;border-radius:6px;}</style>
-										<div class="col-12 mt-3">
-											<span class="cya-profile-claimed-badge"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3Z" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.71423 11.6223L11.2436 15L16.2857 9" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <?php esc_html_e( 'Claimed Profile', 'listinghub' ); ?></span>
-										</div>
-										<?php endif; ?>
 						</div>
 						<?php
 						}

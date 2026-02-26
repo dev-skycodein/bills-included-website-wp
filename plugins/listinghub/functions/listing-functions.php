@@ -549,6 +549,21 @@ if ( ! function_exists( 'listinghub_log_search' ) ) {
 		$table_name = defined( 'ep_listinghub_SEARCH_LOG_TABLE' ) ? ep_listinghub_SEARCH_LOG_TABLE : 'listinghub_search_log';
 		$table      = $wpdb->prefix . $table_name;
 
+		// If the search log table does not exist, try to create it once on the fly.
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+			if ( class_exists( 'eplugins_listinghub' ) ) {
+				$plugin = eplugins_listinghub::instance();
+				if ( method_exists( $plugin, 'listinghub_maybe_create_search_log_table' ) ) {
+					$plugin->listinghub_maybe_create_search_log_table();
+				}
+			}
+			// Re-check after attempting creation; if still missing, bail.
+			if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+				error_log( sprintf( 'listinghub_log_search: table %s does not exist after create attempt, skipping log.', $table ) );
+				return;
+			}
+		}
+
 		$prefix = 'sf';
 		$has_param = false;
 		if ( ! empty( $_REQUEST[ $prefix . 'sort_listing' ] ) ) {
@@ -653,6 +668,21 @@ if ( ! function_exists( 'listinghub_log_contact_event' ) ) {
 
 		$table_name = defined( 'ep_listinghub_CONTACT_LOG_TABLE' ) ? ep_listinghub_CONTACT_LOG_TABLE : 'listinghub_contact_log';
 		$table      = $wpdb->prefix . $table_name;
+
+		// If the contact log table does not exist, try to create it once on the fly.
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+			if ( class_exists( 'eplugins_listinghub' ) ) {
+				$plugin = eplugins_listinghub::instance();
+				if ( method_exists( $plugin, 'listinghub_maybe_create_contact_log_table' ) ) {
+					$plugin->listinghub_maybe_create_contact_log_table();
+				}
+			}
+			// Re-check after attempting creation; if still missing, bail.
+			if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+				error_log( sprintf( 'listinghub_log_contact_event: table %s does not exist after create attempt, skipping log.', $table ) );
+				return;
+			}
+		}
 
 		$listing_id = (int) $listing_id;
 		if ( $listing_id <= 0 ) {

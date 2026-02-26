@@ -371,7 +371,7 @@
 			</div>
 			<div class="col-lg-4 col-md-12 col-sm-12 col-12 pl-40 pl-lg-15 mt-lg-30">
 				
-				<div class="sidebar-border">
+				<div class="sidebar-border agency-sidebar">
 					<?php
 					if(array_key_exists('author_info',$active_single_fields_saved)){ 
 					?>
@@ -459,7 +459,7 @@
 										</div>
 										<?php if ( $agency_post_id && $agency_owner === 0 ) : ?>
 										<style>
-											.cya-claim-agency-button { font-size: 15px; }
+											.agency-sidebar .cya-claim-agency-button { font-size: 15px; }
 										</style>
 										<div class="col-12 mt-2">
 											<button type="button" class="btn btn-border btn-sm mt-1 cya-claim-agency-button" onclick="bia_open_claim_agency_popup(this,'<?php echo esc_attr( (string) $agency_post_id ); ?>','<?php echo esc_attr( $listingid ); ?>')">

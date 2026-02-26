@@ -390,6 +390,19 @@
 				global $wpdb;
 				$view_table_name = defined( 'ep_listinghub_VIEW_LOG_TABLE' ) ? ep_listinghub_VIEW_LOG_TABLE : 'listinghub_view_log';
 				$view_table      = $wpdb->prefix . $view_table_name;
+
+				// If the view log table does not exist, try to create it once on the fly.
+				if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $view_table ) ) !== $view_table ) {
+					if ( method_exists( $this, 'listinghub_maybe_create_view_log_table' ) ) {
+						$this->listinghub_maybe_create_view_log_table();
+					}
+					// Re-check; if still missing, bail.
+					if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $view_table ) ) !== $view_table ) {
+						error_log( sprintf( 'listinghub_track_listing_view: table %s does not exist after create attempt, skipping log.', $view_table ) );
+						return;
+					}
+				}
+
 				$wpdb->insert(
 					$view_table,
 					array(
@@ -621,6 +634,17 @@
 				$table_name = defined( 'ep_listinghub_AGENCY_LOGIN_LOG_TABLE' ) ? ep_listinghub_AGENCY_LOGIN_LOG_TABLE : 'listinghub_agency_login_log';
 				$table      = $wpdb->prefix . $table_name;
 
+				// If the agency login log table does not exist, try to create it on the fly.
+				if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+					if ( method_exists( $this, 'listinghub_maybe_create_agency_login_log_table' ) ) {
+						$this->listinghub_maybe_create_agency_login_log_table();
+					}
+					if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+						error_log( sprintf( 'listinghub_log_agency_login: table %s does not exist after create attempt, skipping log.', $table ) );
+						return;
+					}
+				}
+
 				$wpdb->insert(
 					$table,
 					array(
@@ -669,6 +693,17 @@
 				$table_name = defined( 'ep_listinghub_RENTER_LOGIN_LOG_TABLE' ) ? ep_listinghub_RENTER_LOGIN_LOG_TABLE : 'listinghub_renter_login_log';
 				$table      = $wpdb->prefix . $table_name;
 
+				// If the renter login log table does not exist, try to create it on the fly.
+				if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+					if ( method_exists( $this, 'listinghub_maybe_create_renter_login_log_table' ) ) {
+						$this->listinghub_maybe_create_renter_login_log_table();
+					}
+					if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+						error_log( sprintf( 'listinghub_log_renter_login: table %s does not exist after create attempt, skipping log.', $table ) );
+						return;
+					}
+				}
+
 				$wpdb->insert(
 					$table,
 					array(
@@ -708,9 +743,15 @@
 				$table_name = defined( 'ep_listinghub_AGENCY_ACTIVITY_LOG_TABLE' ) ? ep_listinghub_AGENCY_ACTIVITY_LOG_TABLE : 'listinghub_agency_activity_log';
 				$table      = $wpdb->prefix . $table_name;
 
-				// Bail if table does not exist yet.
+				// Ensure the agency activity log table exists; try to create it on the fly if needed.
 				if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) ) !== $table ) {
-					return;
+					if ( method_exists( $this, 'listinghub_maybe_create_agency_activity_log_table' ) ) {
+						$this->listinghub_maybe_create_agency_activity_log_table();
+					}
+					if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) ) !== $table ) {
+						error_log( sprintf( 'listinghub_handle_agency_activity: table %s does not exist after create attempt, skipping log.', $table ) );
+						return;
+					}
 				}
 
 				$wpdb->insert(
