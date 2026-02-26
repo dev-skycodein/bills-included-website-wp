@@ -170,6 +170,8 @@
 				add_action('wp_ajax_nopriv_listinghub_chatgpt_post_creator', array($this, 'listinghub_chatgpt_post_creator'));
 				// Log agency owner logins for Analytics → Agency engagement.
 				add_action( 'wp_login', array( $this, 'listinghub_log_agency_login' ), 10, 2 );
+				// Log renter logins for Analytics → Marketplace health (MAU/WAU).
+				add_action( 'wp_login', array( $this, 'listinghub_log_renter_login' ), 10, 2 );
 				// Generic hook for agency activity events coming from other plugins (e.g. Claim Your Agency).
 				add_action( 'listinghub_agency_activity', array( $this, 'listinghub_handle_agency_activity' ), 10, 3 );
 
@@ -227,6 +229,7 @@
 				add_action( 'init', array($this, 'listinghub_maybe_create_view_log_table'), 0 );
 				add_action( 'init', array($this, 'listinghub_maybe_create_agency_login_log_table'), 0 );
 				add_action( 'init', array($this, 'listinghub_maybe_create_agency_activity_log_table'), 0 );
+				add_action( 'init', array($this, 'listinghub_maybe_create_renter_login_log_table'), 0 );
 				add_action( 'wp_loaded', array($this, 'listinghub_woocommerce_form_submit') );
 				add_action( 'init', array($this, 'ep_listinghub_cpt_columns') );
 				// Add color script
@@ -258,6 +261,8 @@
 			const AGENCY_LOGIN_LOG_TABLE_SCHEMA_VERSION = 1;
 			/** Current schema version for the agency activity log table. Bump when table structure changes. */
 			const AGENCY_ACTIVITY_LOG_TABLE_SCHEMA_VERSION = 1;
+			/** Current schema version for the renter login log table. Bump when table structure changes. */
+			const RENTER_LOGIN_LOG_TABLE_SCHEMA_VERSION = 1;
 
 			private function define_constants() {
 				if (!defined('ep_listinghub_BASENAME')) define('ep_listinghub_BASENAME', plugin_basename(__FILE__));
@@ -267,6 +272,7 @@
 				if (!defined('ep_listinghub_VIEW_LOG_TABLE')) define('ep_listinghub_VIEW_LOG_TABLE', 'listinghub_view_log');
 				if (!defined('ep_listinghub_AGENCY_LOGIN_LOG_TABLE')) define('ep_listinghub_AGENCY_LOGIN_LOG_TABLE', 'listinghub_agency_login_log');
 				if (!defined('ep_listinghub_AGENCY_ACTIVITY_LOG_TABLE')) define('ep_listinghub_AGENCY_ACTIVITY_LOG_TABLE', 'listinghub_agency_activity_log');
+				if (!defined('ep_listinghub_RENTER_LOGIN_LOG_TABLE')) define('ep_listinghub_RENTER_LOGIN_LOG_TABLE', 'listinghub_renter_login_log');
 				if (!defined('ep_listinghub_FOLDER'))define('ep_listinghub_FOLDER', plugin_basename(dirname(__FILE__)));
 				if (!defined('ep_listinghub_ABSPATH'))define('ep_listinghub_ABSPATH', trailingslashit(str_replace("\\", "/", WP_PLUGIN_DIR . '/' . plugin_basename(dirname(__FILE__)))));
 				if (!defined('ep_listinghub_URLPATH'))define('ep_listinghub_URLPATH', trailingslashit(plugins_url() . '/' . plugin_basename(dirname(__FILE__))));
@@ -623,6 +629,53 @@
 						'agency_post_id'=> $agency_post_id,
 					),
 					array( '%s', '%d', '%d' )
+				);
+			}
+
+			/**
+			 * Log a renter login (wp_login hook) into the renter login log table.
+			 *
+			 * Used for Analytics → Marketplace health (active renters MAU/WAU).
+			 *
+			 * @param string  $user_login Username.
+			 * @param WP_User $user       User object.
+			 */
+			public function listinghub_log_renter_login( $user_login, $user ) {
+				// Guard: avoid duplicate entries per request per user.
+				static $did_for_user = array();
+
+				if ( ! $user instanceof WP_User ) {
+					return;
+				}
+
+				$user_id = (int) $user->ID;
+				if ( $user_id <= 0 ) {
+					return;
+				}
+
+				if ( isset( $did_for_user[ $user_id ] ) ) {
+					return;
+				}
+
+				// Only track users with the "Renter" role.
+				$roles = (array) $user->roles;
+				if ( ! in_array( 'Renter', $roles, true ) ) {
+					return;
+				}
+
+				$did_for_user[ $user_id ] = true;
+
+				global $wpdb;
+				$table_name = defined( 'ep_listinghub_RENTER_LOGIN_LOG_TABLE' ) ? ep_listinghub_RENTER_LOGIN_LOG_TABLE : 'listinghub_renter_login_log';
+				$table      = $wpdb->prefix . $table_name;
+
+				$wpdb->insert(
+					$table,
+					array(
+						'created' => current_time( 'mysql' ),
+						'user_id' => $user_id,
+					),
+					array( '%s', '%d' )
 				);
 			}
 
@@ -2956,6 +3009,38 @@
 				}
 			}
 
+			/**
+			 * Ensure renter login log table exists. Runs on init (schema version check).
+			 * Used for Analytics → Marketplace health (active renters MAU/WAU).
+			 */
+			public function listinghub_maybe_create_renter_login_log_table() {
+				global $wpdb;
+				$table_name = defined( 'ep_listinghub_RENTER_LOGIN_LOG_TABLE' ) ? ep_listinghub_RENTER_LOGIN_LOG_TABLE : 'listinghub_renter_login_log';
+				$table      = $wpdb->prefix . $table_name;
+				$exists     = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
+				if ( $exists === $table ) {
+					update_option( 'listinghub_renter_login_log_schema_version', self::RENTER_LOGIN_LOG_TABLE_SCHEMA_VERSION );
+					return;
+				}
+
+				$charset = $wpdb->get_charset_collate();
+				$sql     = "CREATE TABLE {$table} (
+					id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+					created datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+					user_id bigint(20) unsigned NOT NULL DEFAULT '0',
+					PRIMARY KEY  (id),
+					KEY created (created),
+					KEY user_id (user_id)
+				) {$charset};";
+
+				require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+				dbDelta( $sql );
+
+				$exists_after = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
+				if ( $exists_after === $table ) {
+					update_option( 'listinghub_renter_login_log_schema_version', self::RENTER_LOGIN_LOG_TABLE_SCHEMA_VERSION );
+				}
+			}
 			/**
 			 * Ensure agency activity log table exists. Runs on init (schema version check).
 			 * Used for Analytics → Agency engagement (Agents activity log).
