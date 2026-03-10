@@ -58,19 +58,3 @@
 		?>
 	</div>
 </div>
-<div class="single-listing-sourced-notice mt-3" style="font-size: 0.8125rem; color: #6b7280;">
-	<?php
-	$contact_url = home_url( '/contact' );
-	/* translators: %s: contact link HTML */
-	echo wp_kses(
-		sprintf(
-			__( 'This listing is sourced from the original agent and remains their property. <br>For removal or updates, please %s.', 'listinghub' ),
-			'<a href="' . esc_url( $contact_url ) . '" target="_blank" style="color: #9aa521 !important; text-decoration: underline;">' . esc_html__( 'contact us here', 'listinghub' ) . '</a>'
-		),
-		array(
-			'a'  => array( 'href' => true, 'style' => true ),
-			'br' => array(),
-		)
-	);
-	?>
-</div>
