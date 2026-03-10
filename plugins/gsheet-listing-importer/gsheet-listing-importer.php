@@ -19,7 +19,7 @@ const GSLI_IMAGE_BATCH_LOCK_TTL = 600;
 // Throttle between image downloads/uploads (microseconds).
 const GSLI_IMAGE_THROTTLE_USLEEP = 250000;
 // Default logo for all agencies and listings (company logo).
-const GSLI_DEFAULT_AGENCY_LOGO = 'https://thebillsincluded.com/wp-content/uploads/2026/02/purple-house-clipart.jpg';
+const GSLI_DEFAULT_AGENCY_LOGO = 'https://thebillsincluded.com/wp-content/uploads/2026/03/purple-house-clipart.png';
 const GSLI_OPTION_SHEET_ID = 'gsli_sheet_id';
 const GSLI_OPTION_SHEET_GID = 'gsli_sheet_gid';
 const GSLI_OPTION_SHEET_GIDS = 'gsli_sheet_gids';
@@ -382,10 +382,66 @@ function gsli_render_admin_page() {
 		<h2>Imported Listings</h2>
 		<p>Listings added by this plugin (identified by <code>unique_id</code>). Delete removes the post, all meta, and associated media (featured + gallery images).</p>
 		<?php
-		$imported = gsli_get_imported_listings();
-		if (!empty($imported)) :
+		$current_page    = isset($_GET['gsli_page']) ? max(1, (int) $_GET['gsli_page']) : 1;
+		$per_page        = 20;
+		$selected_agency = isset($_GET['gsli_agency']) ? (int) $_GET['gsli_agency'] : 0;
+
+		$import_query = gsli_get_imported_listings($current_page, $per_page, $selected_agency);
+
+		if ($import_query instanceof WP_Query && $import_query->have_posts()) :
 			$post_type = gsli_get_listing_post_type();
 			$edit_base = admin_url('post.php?post=%d&action=edit');
+
+			// Agency filter dropdown (gsli_agency post type). Only published and de-duplicated by agency_id.
+			$agencies_raw = get_posts(array(
+				'post_type'      => 'gsli_agency',
+				'post_status'    => 'publish',
+				'numberposts'    => -1,
+				'orderby'        => 'title',
+				'order'          => 'ASC',
+				'fields'         => 'ids',
+				'suppress_filters' => false,
+			));
+			$agencies = array();
+			$seen_keys = array();
+			if (!empty($agencies_raw)) {
+				foreach ($agencies_raw as $agency_id) {
+					$key = get_post_meta($agency_id, 'agency_id', true);
+					if ($key === '') {
+						$key = 'id_' . $agency_id;
+					}
+					if (isset($seen_keys[$key])) {
+						continue;
+					}
+					$seen_keys[$key] = true;
+					$agencies[] = $agency_id;
+				}
+			}
+
+			?>
+			<form method="get" action="">
+				<input type="hidden" name="page" value="gsli-import" />
+				<label for="gsli_agency_filter"><?php esc_html_e('Filter by agency', 'gsheet-listing-importer'); ?>:</label>
+				<select id="gsli_agency_filter" name="gsli_agency">
+					<option value="0"><?php esc_html_e('All agencies', 'gsheet-listing-importer'); ?></option>
+					<?php
+					if (!empty($agencies)) {
+						foreach ($agencies as $agency_id) {
+							$title   = get_the_title($agency_id);
+							$selected = selected($selected_agency, $agency_id, false);
+							printf(
+								'<option value="%1$d" %3$s>%2$s</option>',
+								(int) $agency_id,
+								esc_html($title),
+								$selected
+							);
+						}
+					}
+					?>
+				</select>
+				<?php submit_button(__('Filter', 'gsheet-listing-importer'), 'secondary', '', false); ?>
+			</form>
+			<?php
 		?>
 		<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="gsli-delete-listings-form">
 			<?php wp_nonce_field('gsli_delete_listings_action', 'gsli_delete_listings_nonce'); ?>
@@ -399,15 +455,18 @@ function gsli_render_admin_page() {
 						<th scope="col">ID</th>
 						<th scope="col">Title</th>
 						<th scope="col">Unique ID</th>
-						<th scope="col">Status</th>
+						<th scope="col">WP Status</th>
+						<th scope="col">Availability</th>
 						<th scope="col">Date</th>
 						<th scope="col">Images</th>
 						<th scope="col">Actions</th>
 					</tr>
 				</thead>
 				<tbody>
-					<?php foreach ($imported as $post) :
-						$unique_id = get_post_meta($post->ID, 'unique_id', true);
+					<?php foreach ($import_query->posts as $post) :
+						$unique_id          = get_post_meta($post->ID, 'unique_id', true);
+						$availability_value = get_post_meta($post->ID, 'availability_status', true);
+						$availability_label = $availability_value !== '' ? $availability_value : '—';
 						$edit_url = sprintf($edit_base, $post->ID);
 						$view_url = get_permalink($post->ID);
 						$gallery_ids = get_post_meta($post->ID, 'image_gallery_ids', true);
@@ -432,6 +491,7 @@ function gsli_render_admin_page() {
 						<td><strong><?php echo esc_html($post->post_title); ?></strong></td>
 						<td><code><?php echo esc_html($unique_id); ?></code></td>
 						<td><?php echo esc_html($post->post_status); ?></td>
+						<td><?php echo esc_html($availability_label); ?></td>
 						<td><?php echo esc_html(get_the_date('', $post)); ?></td>
 						<td><?php echo esc_html($image_count); ?></td>
 						<td>
@@ -442,6 +502,50 @@ function gsli_render_admin_page() {
 					<?php endforeach; ?>
 				</tbody>
 			</table>
+			<?php
+			$total_pages = (int) $import_query->max_num_pages;
+			if ($total_pages > 1) :
+				$base_url = remove_query_arg('gsli_page');
+				$pagination_links = paginate_links(array(
+					'base'      => add_query_arg('gsli_page', '%#%', $base_url),
+					'format'    => '',
+					'current'   => $current_page,
+					'total'     => $total_pages,
+					'type'      => 'list',
+				));
+				if ($pagination_links) :
+					?>
+					<style>
+						#gsli-imported-listings-pagination .page-numbers {
+							display: inline-flex;
+							gap: 4px;
+							margin: 0;
+							padding: 0;
+							list-style: none;
+						}
+						#gsli-imported-listings-pagination .page-numbers li a,
+						#gsli-imported-listings-pagination .page-numbers li span {
+							padding: 3px 8px;
+							border: 1px solid #ccd0d4;
+							border-radius: 2px;
+							text-decoration: none;
+							font-size: 12px;
+						}
+						#gsli-imported-listings-pagination .page-numbers li span.current {
+							background: #0073aa;
+							color: #fff;
+							border-color: #0073aa;
+						}
+					</style>
+					<div id="gsli-imported-listings-pagination" class="tablenav">
+						<div class="tablenav-pages" style="float:none;text-align:center;margin:12px 0;">
+							<?php echo $pagination_links; ?>
+						</div>
+					</div>
+					<?php
+				endif;
+			endif;
+			?>
 			<p class="submit">
 				<button type="submit" class="button button-secondary" name="gsli_delete_confirm" value="1" onclick="return confirm('<?php echo esc_js(__('Permanently delete selected listings and all their images?', 'gsheet-listing-importer')); ?>');"><?php esc_html_e('Delete selected', 'gsheet-listing-importer'); ?></button>
 			</p>
@@ -1128,21 +1232,36 @@ function gsli_get_listing_post_type() {
 	return $listinghub_directory_url;
 }
 
-function gsli_get_imported_listings() {
+function gsli_get_imported_listings($paged = 1, $per_page = 50, $agency_post_id = 0) {
 	$post_type = gsli_get_listing_post_type();
-	$query = new WP_Query(array(
-		'post_type' => $post_type,
-		'post_status' => 'any',
-		'posts_per_page' => 500,
-		'meta_key' => 'unique_id',
-		'meta_compare' => 'EXISTS',
-		'orderby' => 'date',
-		'order' => 'DESC',
-	));
-	if (!$query->have_posts()) {
-		return array();
+
+	$meta_query = array(
+		array(
+			'key'     => 'unique_id',
+			'compare' => 'EXISTS',
+		),
+	);
+
+	if ($agency_post_id > 0) {
+		$meta_query[] = array(
+			'key'   => 'agency_post_id',
+			'value' => (int) $agency_post_id,
+		);
 	}
-	return $query->posts;
+
+	$args = array(
+		'post_type'      => $post_type,
+		'post_status'    => 'any',
+		'posts_per_page' => $per_page,
+		'paged'          => max(1, (int) $paged),
+		'meta_query'     => $meta_query,
+		'orderby'        => 'date',
+		'order'          => 'DESC',
+	);
+
+	$query = new WP_Query($args);
+
+	return $query;
 }
 
 function gsli_find_existing_post_id($post_type, $data, $postarr) {
@@ -1155,10 +1274,11 @@ function gsli_find_existing_post_id($post_type, $data, $postarr) {
 
 	if ($lookup_id !== '') {
 		$existing = get_posts(array(
-			'post_type' => $post_type,
-			'meta_key' => 'unique_id',
-			'meta_value' => $lookup_id,
-			'fields' => 'ids',
+			'post_type'   => $post_type,
+			'post_status' => 'any',
+			'meta_key'    => 'unique_id',
+			'meta_value'  => $lookup_id,
+			'fields'      => 'ids',
 			'numberposts' => 1,
 		));
 		if (!empty($existing)) {
@@ -1195,6 +1315,7 @@ function gsli_get_or_create_agency($data) {
 		return 0;
 	}
 
+	// First, try to find an existing agency by the stored agency_id meta.
 	$existing = get_posts(array(
 		'post_type'   => 'gsli_agency',
 		'post_status' => 'any',
@@ -1205,8 +1326,15 @@ function gsli_get_or_create_agency($data) {
 	));
 
 	if (!empty($existing)) {
-		// Existing agency: we do not update its meta here (no re-sync from sheet).
 		return (int) $existing[0];
+	}
+
+	// Fallback for older records that might not have agency_id meta yet: look up by slug.
+	$existing_by_slug = get_page_by_path($agency_key, OBJECT, 'gsli_agency');
+	if ($existing_by_slug instanceof WP_Post) {
+		$existing_id = (int) $existing_by_slug->ID;
+		update_post_meta($existing_id, 'agency_id', $agency_key);
+		return $existing_id;
 	}
 
 	$title = !empty($data['agency_name']) ? sanitize_text_field($data['agency_name']) : $agency_key;
@@ -1683,9 +1811,19 @@ function gsli_format_rich_text($description) {
 	if ($description === '') {
 		return '';
 	}
+
+	// If this already contains Gutenberg blocks, trust it as-is.
 	if (strpos($description, '<!-- wp:') !== false) {
-		return wp_kses_post($description);
+		return $description;
 	}
+
+	// If it looks like HTML (e.g. tags from the sheet), treat it as an HTML block
+	// so it renders properly in the visual editor instead of being escaped.
+	if (preg_match('/<\s*[a-zA-Z\/!][^>]*>/', $description)) {
+		return "<!-- wp:html -->\n" . $description . "\n<!-- /wp:html -->";
+	}
+
+	// Plain text fallback – wrap in a paragraph block.
 	$wrapped = '<!-- wp:paragraph -->' . "\n" .
 		'<p>' . esc_html($description) . '</p>' . "\n" .
 		'<!-- /wp:paragraph -->';

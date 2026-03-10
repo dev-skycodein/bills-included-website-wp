@@ -33,7 +33,7 @@ while ( have_posts() ) {
 					<header class="agency-header">
 						<?php if ( $agency_logo_url ) : ?>
 							<div class="agency-logo mb-3">
-								<img src="<?php echo esc_url( $agency_logo_url ); ?>" alt="" class="rounded shadow-sm" style="max-width: 100%; height: auto;">
+								<img src="<?php echo esc_url( $agency_logo_url ); ?>" alt="" class="rounded shadow-sm" style="max-width: 100%; height: 80px; width: 80px; object-fit: contain;">
 							</div>
 						<?php endif; ?>
 						<h1 class="agency-title mb-2"><?php echo esc_html( $agency_name ); ?></h1>
