@@ -118,6 +118,8 @@
 				add_action('wp_ajax_listinghub_save_wp_post', array($this, 'listinghub_save_wp_post'));	
 				add_action('wp_ajax_listinghub_update_setting_password', array($this, 'listinghub_update_setting_password'));
 				add_action('wp_ajax_listinghub_check_login', array($this, 'listinghub_check_login'));
+				// Agency engagement: log when an agency owner views an individual message (eye icon).
+				add_action( 'wp_ajax_listinghub_agency_message_view', array( $this, 'listinghub_agency_message_view' ) );
 				add_action('wp_ajax_nopriv_listinghub_check_login', array($this, 'listinghub_check_login'));
 				add_action('wp_ajax_listinghub_forget_password', array($this, 'listinghub_forget_password'));
 				add_action('wp_ajax_nopriv_listinghub_forget_password', array($this, 'listinghub_forget_password'));					
@@ -712,6 +714,114 @@
 					),
 					array( '%s', '%d' )
 				);
+			}
+
+			/**
+			 * AJAX handler: log that an agency owner viewed a specific enquiry/message (eye icon on messageboard).
+			 *
+			 * This increments a "view_message" activity event for the agency engagement analytics.
+			 */
+			public function listinghub_agency_message_view() {
+				if ( ! is_user_logged_in() ) {
+					error_log( 'listinghub_agency_message_view: user not logged in' );
+					wp_send_json_error( array( 'message' => 'not_logged_in' ) );
+				}
+
+				$user_id    = get_current_user_id();
+				$message_id = isset( $_POST['message_id'] ) ? (int) $_POST['message_id'] : 0;
+
+				if ( $message_id <= 0 ) {
+					error_log(
+						sprintf(
+							'listinghub_agency_message_view: invalid_message (user_id=%d, raw=%s)',
+							(int) $user_id,
+							isset( $_POST['message_id'] ) ? wp_json_encode( $_POST['message_id'] ) : 'missing'
+						)
+					);
+					wp_send_json_error( array( 'message' => 'invalid_message' ) );
+				}
+
+				$message = get_post( $message_id );
+				if ( ! $message || $message->post_type !== 'listinghub_message' ) {
+					error_log(
+						sprintf(
+							'listinghub_agency_message_view: invalid_message_type (user_id=%d, message_id=%d, post_type=%s)',
+							(int) $user_id,
+							(int) $message_id,
+							$message ? $message->post_type : 'none'
+						)
+					);
+					wp_send_json_error( array( 'message' => 'invalid_message_type' ) );
+				}
+
+				// Ensure this user is the intended recipient of the message.
+				$user_to = (int) get_post_meta( $message_id, 'user_to', true );
+				if ( $user_to !== $user_id ) {
+					error_log(
+						sprintf(
+							'listinghub_agency_message_view: not_recipient (user_id=%d, user_to=%d, message_id=%d)',
+							(int) $user_id,
+							(int) $user_to,
+							(int) $message_id
+						)
+					);
+					wp_send_json_error( array( 'message' => 'not_recipient' ) );
+				}
+
+				// Try to resolve the agency from the message's linked listing first.
+				$agency_post_id = 0;
+
+				$listing_id = (int) get_post_meta( $message_id, 'listing_id', true );
+				if ( $listing_id > 0 ) {
+					$agency_post_id = (int) get_post_meta( $listing_id, 'agency_post_id', true );
+					error_log(
+						sprintf(
+							'listinghub_agency_message_view: resolved from listing (user_id=%d, message_id=%d, listing_id=%d, agency_post_id=%d)',
+							(int) $user_id,
+							(int) $message_id,
+							(int) $listing_id,
+							(int) $agency_post_id
+						)
+					);
+				}
+
+				// Fallback: use Claim Your Agency mapping if no agency found on the listing.
+				if ( $agency_post_id <= 0 && function_exists( 'cya_get_agency_post_id_for_user' ) ) {
+					$agency_post_id = cya_get_agency_post_id_for_user( $user_id );
+					error_log(
+						sprintf(
+							'listinghub_agency_message_view: fallback CYA lookup (user_id=%d, message_id=%d, agency_post_id=%d)',
+							(int) $user_id,
+							(int) $message_id,
+							(int) $agency_post_id
+						)
+					);
+				}
+
+				if ( $agency_post_id <= 0 ) {
+					error_log(
+						sprintf(
+							'listinghub_agency_message_view: no_agency_for_user (user_id=%d, message_id=%d)',
+							(int) $user_id,
+							(int) $message_id
+						)
+					);
+					wp_send_json_success( array( 'message' => 'no_agency' ) );
+				}
+
+				// Reuse the generic agency activity logger – treat message view as "manage enquiries".
+				do_action( 'listinghub_agency_activity', 'manage_enquiries', $agency_post_id, $user_id );
+
+				error_log(
+					sprintf(
+						'listinghub_agency_message_view: logged manage_enquiries (agency_post_id=%d, user_id=%d, message_id=%d)',
+						(int) $agency_post_id,
+						(int) $user_id,
+						(int) $message_id
+					)
+				);
+
+				wp_send_json_success( array( 'message' => 'ok' ) );
 			}
 
 			/**

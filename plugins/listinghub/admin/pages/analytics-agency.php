@@ -194,9 +194,9 @@ if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $activity_table ) ) 
 	$activity_log_rows = $wpdb->get_results( $sql_activity_log, ARRAY_A );
 }
 
-// Sub-tabs: claims overview | listings per agency | logins/sessions | agents activity log.
+// Sub-tabs: claims overview | listings per agency | logins/sessions | agents activity log | messages views.
 $subtab          = isset( $_GET['subtab'] ) ? sanitize_text_field( wp_unslash( $_GET['subtab'] ) ) : 'claims';
-$allowed_subtabs = array( 'claims', 'listings', 'logins', 'activity' );
+$allowed_subtabs = array( 'claims', 'listings', 'logins', 'activity', 'messages' );
 if ( ! in_array( $subtab, $allowed_subtabs, true ) ) {
 	$subtab = 'claims';
 }
@@ -215,6 +215,7 @@ include 'header.php';
 				<a href="<?php echo esc_url( add_query_arg( 'subtab', 'listings', $base_url ) ); ?>" class="nav-tab <?php echo $subtab === 'listings' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'Listings per agency', 'listinghub' ); ?></a>
 				<a href="<?php echo esc_url( add_query_arg( 'subtab', 'logins', $base_url ) ); ?>" class="nav-tab <?php echo $subtab === 'logins' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'Agency logins/sessions', 'listinghub' ); ?></a>
 				<a href="<?php echo esc_url( add_query_arg( 'subtab', 'activity', $base_url ) ); ?>" class="nav-tab <?php echo $subtab === 'activity' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'Agents activity log', 'listinghub' ); ?></a>
+				<a href="<?php echo esc_url( add_query_arg( 'subtab', 'messages', $base_url ) ); ?>" class="nav-tab <?php echo $subtab === 'messages' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( 'Messages', 'listinghub' ); ?></a>
 			</div>
 
 			<?php if ( $subtab === 'claims' ) : ?>
@@ -232,6 +233,10 @@ include 'header.php';
 			<?php elseif ( $subtab === 'activity' ) : ?>
 				<p class="description">
 					<?php esc_html_e( 'Key actions taken by agency owners, such as editing their profile or managing enquiries.', 'listinghub' ); ?>
+				</p>
+			<?php elseif ( $subtab === 'messages' ) : ?>
+				<p class="description">
+					<?php esc_html_e( 'How many enquiries each agency owner has opened via the message viewer.', 'listinghub' ); ?>
 				</p>
 			<?php endif; ?>
 		</div>
@@ -315,6 +320,21 @@ include 'header.php';
 				</div>
 			</div>
 		</div>
+	<?php elseif ( $subtab === 'messages' ) : ?>
+		<div class="row mb-3">
+			<div class="col-md-3">
+				<div class="card p-3">
+					<strong><?php esc_html_e( 'Total agencies', 'listinghub' ); ?></strong>
+					<p class="mt-1 mb-0"><?php echo esc_html( (string) count( $agencies ) ); ?></p>
+				</div>
+			</div>
+			<div class="col-md-3">
+				<div class="card p-3">
+					<strong><?php esc_html_e( 'Total message views (all agencies)', 'listinghub' ); ?></strong>
+					<p class="mt-1 mb-0"><?php echo esc_html( (string) $total_manage_enquiries ); ?></p>
+				</div>
+			</div>
+		</div>
 	<?php endif; ?>
 
 	<div class="row">
@@ -358,7 +378,7 @@ include 'header.php';
 										$action_label = __( 'Edit agency details', 'listinghub' );
 										break;
 									case 'manage_enquiries':
-										$action_label = __( 'Manage enquiries (messageboard)', 'listinghub' );
+										$action_label = __( 'Manage enquiries (message view)', 'listinghub' );
 										break;
 									default:
 										$action_label = $action_slug;
@@ -390,6 +410,57 @@ include 'header.php';
 						<?php endif; ?>
 					</tbody>
 				</table>
+			<?php elseif ( $subtab === 'messages' ) : ?>
+				<?php if ( empty( $agencies ) ) : ?>
+					<p><?php esc_html_e( 'No agencies found.', 'listinghub' ); ?></p>
+				<?php else : ?>
+					<table class="wp-list-table widefat fixed striped">
+						<thead>
+							<tr>
+								<th scope="col"><?php esc_html_e( 'Agency', 'listinghub' ); ?></th>
+								<th scope="col"><?php esc_html_e( 'Message views', 'listinghub' ); ?></th>
+								<th scope="col"><?php esc_html_e( 'Agency owner', 'listinghub' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $agencies as $agency ) : ?>
+								<?php
+								$agency_id   = (int) $agency['agency_id'];
+								$owner_id    = (int) $agency['owner_id'];
+								$title       = get_the_title( $agency_id );
+								$link        = get_edit_post_link( $agency_id, 'raw' );
+								$view_count  = isset( $activity_counts[ $agency_id ]['manage_enquiries'] ) ? (int) $activity_counts[ $agency_id ]['manage_enquiries'] : 0;
+								$owner_label = '';
+								if ( $owner_id > 0 ) {
+									$user = get_user_by( 'ID', $owner_id );
+									if ( $user ) {
+										$owner_label = $user->display_name . ' (#' . (int) $owner_id . ')';
+									} else {
+										$owner_label = '#' . (int) $owner_id;
+									}
+								} else {
+									$owner_label = '—';
+								}
+								?>
+								<tr>
+									<td>
+										<?php
+										if ( $link && $title ) {
+											echo '<a href="' . esc_url( $link ) . '">' . esc_html( $title ) . ' (#' . (int) $agency_id . ')</a>';
+										} elseif ( $title ) {
+											echo esc_html( $title ) . ' (#' . (int) $agency_id . ')';
+										} else {
+											echo '#' . (int) $agency_id;
+										}
+										?>
+									</td>
+									<td><?php echo esc_html( (string) $view_count ); ?></td>
+									<td><?php echo esc_html( $owner_label ); ?></td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+				<?php endif; ?>
 			<?php else : ?>
 				<?php if ( empty( $agencies ) ) : ?>
 					<p><?php esc_html_e( 'No agencies found.', 'listinghub' ); ?></p>

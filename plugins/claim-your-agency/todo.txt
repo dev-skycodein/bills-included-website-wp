@@ -1,12 +1,12 @@
 Claim my Agency
 
-[] when claim is approved the agent is assigned to agency package but due to no subscription created the payment status is pending. So he is reverted to basic role. only one listing to which he claimed for is assigned. (implemented but need to verify)
+[✓] when claim is approved the agent is assigned to agency package but due to no subscription created the payment status is pending. So he is reverted to basic role. only one listing to which he claimed for is assigned. (implemented but need to verify)
 
-[] Agency logo is a purple house for now, and value is setting and fetching from single source truth. Can be edited by the Agent claimed that agnecy. the new image will also save on the same single source key. (implemented but need to verify)
+[✓] Agency logo is a purple house for now, and value is setting and fetching from single source truth. Can be edited by the Agent claimed that agnecy. the new image will also save on the same single source key. (implemented but need to verify)
 
-[] Thanks message on success popup after claim for the agencyis submitted. (implemented but need to verify)
+[✓] Thanks message on success popup after claim for the agencyis submitted. (implemented but need to verify)
 
-[] Data analytics storage. 
+[✓] Data analytics storage. 
 
 
 
@@ -65,10 +65,10 @@ Agency engagement (Admin only)
 [✓] Actions taken by agency (edit listing, reply to lead, etc.).
 
 Marketplace health (Admin only)
-[] Active listings count (weekly/monthly; define “active”).
-[] Active renters MAU/WAU (decide logged-in only vs anonymous).
-[] Renters & agencies account created (clarify definition).
-[] Supply–demand ratio by area (define area and demand).
+[✓] Active listings count (weekly/monthly; define “active”).
+[✓] Active renters MAU/WAU (decide logged-in only vs anonymous).
+[✓] Renters & agencies account created (clarify definition).
+[✓] Supply–demand ratio by area (define area and demand).
 
 See TRACKING-FEASIBILITY.md for details and “what we need from you”.
 
@@ -76,16 +76,16 @@ See TRACKING-FEASIBILITY.md for details and “what we need from you”.
 Display & reporting (who sees what).
 
 Admin (WP admin / super admin only)
-[] Marketplace health: active listings, MAU/WAU, accounts created, supply–demand by area (e.g. report page or dashboard widget).
+[✓] Marketplace health: active listings, MAU/WAU, accounts created, supply–demand by area (e.g. report page or dashboard widget).
 [✓] Search/filter logs: where renters search (queries, filters) – list or export.
-[] Agency funnel: claimed vs unclaimed agencies; claim starts / approvals (counts or list).
-[] Optional: all listings table with site-wide metrics per row (views, leads) for admins who manage everything.
+[✓] Agency funnel: claimed vs unclaimed agencies; claim starts / approvals (counts or list).
+[✓] Optional: all listings table with site-wide metrics per row (views, leads) for admins who manage everything.
 
 Agent (agency owner dashboard – e.g. Manage Listings / my-account)
-[] Per listing row (Manage Listings table): total views (already shown), leads count (once listing_id on messages exists), optional: contact clicks.
-[] Per listing row: optional time-on-listing, time to first enquiry, listing completeness score (when we store them).
-[] Agency-level summary for the logged-in agent: total listings, total views across listings, total leads, optional logins/sessions.
-[] Do not show other agencies’ data or site-wide marketplace health to agents.
+[✓] Per listing row (Manage Listings table): total views (already shown), leads count (once listing_id on messages exists), optional: contact clicks.
+[✓] Per listing row: optional time-on-listing, time to first enquiry, listing completeness score (when we store them).
+[✓] Agency-level summary for the logged-in agent: total listings, total views across listings, total leads, optional logins/sessions.
+[✓] Do not show other agencies’ data or site-wide marketplace health to agents.
 
 Implementation note: per-row metrics (views, leads, etc.) come from post meta or counted from listinghub_message / events; keep agent views restricted to their own listings (post_author or agency_post_id).
 
