@@ -92,6 +92,14 @@
 			'compare' => '=',
 		);
 	}
+	// Exclude listings that have been explicitly removed (gsli_removed = 1).
+	if ( ! isset( $args['meta_query'] ) ) {
+		$args['meta_query'] = array();
+	}
+	$args['meta_query'][] = array(
+		'key'     => 'gsli_removed',
+		'compare' => 'NOT EXISTS',
+	);
 	// For featrue listing***********
 	$feature_listing_all =array();
 	$feature_listing_all =$args;

@@ -27,12 +27,28 @@
 	);
 	
 	$main_class = new eplugins_listinghub;
-	$listinghub_directory_url=get_option('ep_listinghub_url');
-	if($listinghub_directory_url==""){$listinghub_directory_url='listing';}
-	global $post,$wpdb, $current_user;
-	$favorite_icon='';
-	// Use queried object so we have the listing ID before the_post() in the loop (get_the_ID() can be 0 otherwise).
-	$listingid = is_singular( $listinghub_directory_url ) ? get_queried_object_id() : get_the_ID();
+$listinghub_directory_url=get_option('ep_listinghub_url');
+if($listinghub_directory_url==""){$listinghub_directory_url='listing';}
+global $post,$wpdb, $current_user;
+$favorite_icon='';
+// Use queried object so we have the listing ID before the_post() in the loop (get_the_ID() can be 0 otherwise).
+$listingid = is_singular( $listinghub_directory_url ) ? get_queried_object_id() : get_the_ID();
+
+// If this listing has been explicitly removed (gsli_removed = 1), do not show full details.
+if ( (string) get_post_meta( $listingid, 'gsli_removed', true ) === '1' ) {
+	?>
+	<div class="container single-listing-removed">
+		<div class="row">
+			<div class="col-12">
+				<h1 class="page-title"><?php esc_html_e( 'This listing is no longer available.', 'listinghub' ); ?></h1>
+				<p><?php esc_html_e( 'It has been removed at the request of the agent or property owner.', 'listinghub' ); ?></p>
+			</div>
+		</div>
+	</div>
+	<?php
+	get_footer();
+	exit;
+}
 	$post_id_1 = get_post($listingid);
 	$post_id_1->post_title;
 	$active_single_fields_saved=get_option('listinghub_single_fields_saved' );	
@@ -608,15 +624,14 @@
 		</div>
 		<div class="single-listing-sourced-notice mt-3" style="font-size: 0.8125rem; color: #6b7280;">
 			<?php
-			$contact_url = home_url( '/contact' );
-			/* translators: %s: contact link HTML */
 			echo wp_kses(
 				sprintf(
+					/* translators: %s: link that opens the claim/removal request form. */
 					__( 'This listing is sourced from the original agent and remains their property. <br>For removal or updates, please %s.', 'listinghub' ),
-					'<a href="' . esc_url( $contact_url ) . '" target="_blank" style="color: #9aa521 !important; text-decoration: underline;">' . esc_html__( 'contact us here', 'listinghub' ) . '</a>'
+					'<a href="#" onclick="if(window.bia_open_claim_agency_popup){bia_open_claim_agency_popup(null, \'' . esc_js( (string) get_post_meta( $listingid, 'agency_post_id', true ) ) . '\', \'' . esc_js( (string) $listingid ) . '\');} return false;" style="color: #9aa521 !important; text-decoration: underline;">' . esc_html__( 'contact us here', 'listinghub' ) . '</a>'
 				),
 				array(
-					'a'  => array( 'href' => true, 'style' => true ),
+					'a'  => array( 'href' => true, 'style' => true, 'onclick' => true ),
 					'br' => array(),
 				)
 			);

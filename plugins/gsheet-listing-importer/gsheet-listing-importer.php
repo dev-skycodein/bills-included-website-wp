@@ -107,6 +107,22 @@ function gsli_add_cron_schedules($schedules) {
  * Does not rely on WordPress cron; call these URLs from system cron (e.g. crontab) on your schedule.
  */
 function gsli_maybe_run_cron_url() {
+
+	if ( isset($_GET['gsli_cron']) && $_GET['gsli_cron'] === 'test' ) {
+    // Re-use the same token check you already have
+    $token = get_option(GSLI_OPTION_CRON_TOKEN, '');
+    if ($token === '' || !isset($_GET['token']) || !hash_equals($token, sanitize_text_field(wp_unslash($_GET['token'])))) {
+        status_header(403);
+        wp_send_json(array('ok' => false, 'error' => 'Invalid or missing cron token.'), 403);
+    }
+    // Simple success response – won’t touch imports or images.
+    wp_send_json(array(
+        'ok'       => true,
+        'message'  => 'Cron test OK',
+        'datetime' => current_time('mysql'),
+    ));
+	}
+	else {
 	$action = isset($_GET['gsli_cron']) ? sanitize_text_field(wp_unslash($_GET['gsli_cron'])) : '';
 	if ($action === '') {
 		return;
@@ -141,6 +157,7 @@ function gsli_maybe_run_cron_url() {
 
 	status_header(400);
 	wp_send_json(array('ok' => false, 'error' => 'Unknown action. Use import or images.'), 400);
+	}
 }
 
 function gsli_register_queue_post_type() {
@@ -383,10 +400,11 @@ function gsli_render_admin_page() {
 		<p>Listings added by this plugin (identified by <code>unique_id</code>). Delete removes the post, all meta, and associated media (featured + gallery images).</p>
 		<?php
 		$current_page    = isset($_GET['gsli_page']) ? max(1, (int) $_GET['gsli_page']) : 1;
-		$per_page        = 20;
+		$per_page        = 200;
 		$selected_agency = isset($_GET['gsli_agency']) ? (int) $_GET['gsli_agency'] : 0;
+		$search_term     = isset($_GET['gsli_search']) ? sanitize_text_field(wp_unslash($_GET['gsli_search'])) : '';
 
-		$import_query = gsli_get_imported_listings($current_page, $per_page, $selected_agency);
+		$import_query = gsli_get_imported_listings($current_page, $per_page, $selected_agency, $search_term);
 
 		if ($import_query instanceof WP_Query && $import_query->have_posts()) :
 			$post_type = gsli_get_listing_post_type();
@@ -419,15 +437,19 @@ function gsli_render_admin_page() {
 			}
 
 			?>
-			<form method="get" action="">
+			<form method="get" action="" style="margin-bottom:12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
 				<input type="hidden" name="page" value="gsli-import" />
-				<label for="gsli_agency_filter"><?php esc_html_e('Filter by agency', 'gsheet-listing-importer'); ?>:</label>
+
+				<label for="gsli_search" style="font-weight:600;"><?php esc_html_e('Search', 'gsheet-listing-importer'); ?>:</label>
+				<input type="search" id="gsli_search" name="gsli_search" value="<?php echo esc_attr($search_term); ?>" class="regular-text" placeholder="<?php esc_attr_e('Title, unique ID, address, etc.', 'gsheet-listing-importer'); ?>" />
+
+				<label for="gsli_agency_filter" style="margin-left:12px; font-weight:600;"><?php esc_html_e('Filter by agency', 'gsheet-listing-importer'); ?>:</label>
 				<select id="gsli_agency_filter" name="gsli_agency">
 					<option value="0"><?php esc_html_e('All agencies', 'gsheet-listing-importer'); ?></option>
 					<?php
 					if (!empty($agencies)) {
 						foreach ($agencies as $agency_id) {
-							$title   = get_the_title($agency_id);
+							$title    = get_the_title($agency_id);
 							$selected = selected($selected_agency, $agency_id, false);
 							printf(
 								'<option value="%1$d" %3$s>%2$s</option>',
@@ -439,6 +461,7 @@ function gsli_render_admin_page() {
 					}
 					?>
 				</select>
+
 				<?php submit_button(__('Filter', 'gsheet-listing-importer'), 'secondary', '', false); ?>
 			</form>
 			<?php
@@ -697,6 +720,14 @@ function gsli_do_import($dry_run = null) {
 		}
 
 		$existing_id = gsli_find_existing_post_id($post_type, $data, $postarr);
+		// When gsli_find_existing_post_id returns -1, it means this listing has the
+		// gsli_removed flag set and must NEVER be re-created or updated from the sheet.
+		// In that case, skip this row entirely.
+		if ($existing_id === -1) {
+			gsli_log('Skipped row for removed listing.', array('row' => $index + 1, 'title' => $title));
+			continue;
+		}
+
 		$is_update = (bool) $existing_id;
 
 		if ($dry_run) {
@@ -1232,10 +1263,11 @@ function gsli_get_listing_post_type() {
 	return $listinghub_directory_url;
 }
 
-function gsli_get_imported_listings($paged = 1, $per_page = 50, $agency_post_id = 0) {
+function gsli_get_imported_listings($paged = 1, $per_page = 50, $agency_post_id = 0, $search = '') {
 	$post_type = gsli_get_listing_post_type();
 
 	$meta_query = array(
+		'relation' => 'AND',
 		array(
 			'key'     => 'unique_id',
 			'compare' => 'EXISTS',
@@ -1258,6 +1290,55 @@ function gsli_get_imported_listings($paged = 1, $per_page = 50, $agency_post_id 
 		'orderby'        => 'date',
 		'order'          => 'DESC',
 	);
+
+	$search = trim((string) $search);
+	if ($search !== '') {
+		global $wpdb;
+		$like = '%' . $wpdb->esc_like($search) . '%';
+
+		// Search common meta keys (including unique_id) for the term.
+		$meta_search = array(
+			'relation' => 'OR',
+			array(
+				'key'     => 'unique_id',
+				'value'   => $like,
+				'compare' => 'LIKE',
+			),
+			array(
+				'key'     => 'address',
+				'value'   => $like,
+				'compare' => 'LIKE',
+			),
+			array(
+				'key'     => 'city',
+				'value'   => $like,
+				'compare' => 'LIKE',
+			),
+			array(
+				'key'     => 'agency_id',
+				'value'   => $like,
+				'compare' => 'LIKE',
+			),
+			array(
+				'key'     => 'availability_status',
+				'value'   => $like,
+				'compare' => 'LIKE',
+			),
+			array(
+				'key'     => 'source_listing_url',
+				'value'   => $like,
+				'compare' => 'LIKE',
+			),
+		);
+
+		$meta_query[] = $meta_search;
+		$args['meta_query'] = $meta_query;
+
+		// If the user entered a numeric value, also allow direct lookup by post ID.
+		if (ctype_digit($search)) {
+			$args['post__in'] = array( (int) $search );
+		}
+	}
 
 	$query = new WP_Query($args);
 
@@ -1282,7 +1363,13 @@ function gsli_find_existing_post_id($post_type, $data, $postarr) {
 			'numberposts' => 1,
 		));
 		if (!empty($existing)) {
-			return (int) $existing[0];
+			$found_id = (int) $existing[0];
+			// If this listing has been explicitly removed (via gsli_removed flag)
+			$removed_flag = get_post_meta( $found_id, 'gsli_removed', true );
+			if ( (string) $removed_flag === '1' ) {
+				return -1;
+			}
+			return $found_id;
 		}
 	}
 

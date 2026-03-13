@@ -2,13 +2,19 @@
 	if(!isset($listingid)){$listingid=0;}
 	if(!isset($single_page_icon_saved)){$single_page_icon_saved=get_option('listinghub_single_icon_saved' );}
 	
-	$listinghub_similar = get_posts(array(
+$listinghub_similar = get_posts(array(
 	'numberposts'	=> 3,
 	'post_type'		=> $listinghub_directory_url,
 	'post__not_in' => array(esc_html($listingid)),
 	'post_status'	=> 'publish',
 	'orderby'		=> 'rand',
-	));
+	'meta_query'   => array(
+		array(
+			'key'     => 'gsli_removed',
+			'compare' => 'NOT EXISTS',
+		),
+	),
+));
 ?>
 <div class="sidebar-border">
 	<div class="toptitle mb-3"><?php esc_html_e('Recent listing', 'listinghub'); ?></div>

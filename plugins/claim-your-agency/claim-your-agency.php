@@ -74,7 +74,151 @@ function cya_register_claim_cpt() {
 	);
 
 	register_post_type( 'cya_claim', $args );
+
+	// Removal requests – generic claim/removal form entries from the front end.
+	$removal_labels = array(
+		'name'               => __( 'Removal Requests', 'claim-your-agency' ),
+		'singular_name'      => __( 'Removal Request', 'claim-your-agency' ),
+		'add_new'            => __( 'Add New', 'claim-your-agency' ),
+		'add_new_item'       => __( 'Add New Removal Request', 'claim-your-agency' ),
+		'edit_item'          => __( 'Edit Removal Request', 'claim-your-agency' ),
+		'new_item'           => __( 'New Removal Request', 'claim-your-agency' ),
+		'view_item'          => __( 'View Removal Request', 'claim-your-agency' ),
+		'search_items'       => __( 'Search Removal Requests', 'claim-your-agency' ),
+		'not_found'          => __( 'No removal requests found.', 'claim-your-agency' ),
+		'not_found_in_trash' => __( 'No removal requests found in Trash.', 'claim-your-agency' ),
+	);
+
+	$removal_args = array(
+		'labels'             => $removal_labels,
+		'public'             => false,
+		'show_ui'            => true,
+		'show_in_menu'       => 'edit.php?post_type=cya_claim',
+		'show_in_admin_bar'  => false,
+		'capability_type'    => 'post',
+		'supports'           => array( 'title' ),
+		'has_archive'        => false,
+		'rewrite'            => false,
+		'menu_position'      => 59,
+	);
+
+	register_post_type( 'cya_removal_request', $removal_args );
 }
+
+/**
+ * Customize the title of removal requests to be concise (ID-focused) in the list table.
+ */
+function cya_filter_removal_request_title( $title, $post_id ) {
+	$post = get_post( $post_id );
+	if ( ! $post || $post->post_type !== 'cya_removal_request' ) {
+		return $title;
+	}
+
+	$listing_id = (int) get_post_meta( $post_id, 'listing_id', true );
+	if ( $listing_id > 0 ) {
+		return sprintf( __( 'Removal request for listing #%d', 'claim-your-agency' ), $listing_id );
+	}
+
+	return $title;
+}
+add_filter( 'the_title', 'cya_filter_removal_request_title', 10, 2 );
+
+/**
+ * Customize row actions for removal requests – hide edit/trash, but keep a View link to the live listing.
+ */
+function cya_removal_request_row_actions( $actions, $post ) {
+	if ( $post->post_type !== 'cya_removal_request' ) {
+		return $actions;
+	}
+
+	$listing_id  = (int) get_post_meta( $post->ID, 'listing_id', true );
+	$listing_url = get_post_meta( $post->ID, 'listing_url', true );
+	if ( ! $listing_url && $listing_id > 0 && get_post_status( $listing_id ) ) {
+		$listing_url = get_permalink( $listing_id );
+	}
+
+	$new_actions = array();
+	if ( $listing_url ) {
+		$new_actions['view'] = '<a href="' . esc_url( $listing_url ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'View', 'claim-your-agency' ) . '</a>';
+	}
+
+	return $new_actions;
+}
+add_filter( 'post_row_actions', 'cya_removal_request_row_actions', 10, 2 );
+
+/**
+ * Add an "Action" column to the Removal Requests list table.
+ */
+function cya_removal_request_columns( $columns ) {
+	// Preserve checkbox and title, then add our Action column at the end.
+	$columns['cya_action'] = __( 'Action', 'claim-your-agency' );
+	return $columns;
+}
+add_filter( 'manage_cya_removal_request_posts_columns', 'cya_removal_request_columns' );
+
+/**
+ * Render the "Action" column with a 'Remove this listing' button.
+ */
+function cya_removal_request_custom_column( $column, $post_id ) {
+	if ( $column !== 'cya_action' ) {
+		return;
+	}
+
+	$listing_id = (int) get_post_meta( $post_id, 'listing_id', true );
+	if ( $listing_id <= 0 ) {
+		echo '&mdash;';
+		return;
+	}
+
+	$url = wp_nonce_url(
+		add_query_arg(
+			array(
+				'action'     => 'cya_handle_removal_request',
+				'request_id' => $post_id,
+				'listing_id' => $listing_id,
+			),
+			admin_url( 'admin-post.php' )
+		),
+		'cya_handle_removal_request_' . $post_id
+	);
+
+	echo '<a class="button button-small" href="' . esc_url( $url ) . '">' . esc_html__( 'Remove this listing', 'claim-your-agency' ) . '</a>';
+}
+add_action( 'manage_cya_removal_request_posts_custom_column', 'cya_removal_request_custom_column', 10, 2 );
+
+/**
+ * Handle the "Remove this listing" admin action: set gsli_removed = 1 on the listing.
+ */
+function cya_handle_removal_request_action() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'You do not have permission to perform this action.', 'claim-your-agency' ) );
+	}
+
+	$request_id = isset( $_GET['request_id'] ) ? (int) $_GET['request_id'] : 0;
+	$listing_id = isset( $_GET['listing_id'] ) ? (int) $_GET['listing_id'] : 0;
+
+	if ( ! $request_id || ! $listing_id ) {
+		wp_die( esc_html__( 'Missing request or listing ID.', 'claim-your-agency' ) );
+	}
+
+	if ( ! wp_verify_nonce( isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '', 'cya_handle_removal_request_' . $request_id ) ) {
+		wp_die( esc_html__( 'Invalid nonce.', 'claim-your-agency' ) );
+	}
+
+	// Set gsli_removed flag on the listing.
+	update_post_meta( $listing_id, 'gsli_removed', 1 );
+
+	// Redirect back to the removal requests list.
+	$redirect = add_query_arg(
+		array(
+			'post_type' => 'cya_removal_request',
+		),
+		admin_url( 'edit.php' )
+	);
+	wp_safe_redirect( $redirect );
+	exit;
+}
+add_action( 'admin_post_cya_handle_removal_request', 'cya_handle_removal_request_action' );
 add_action( 'init', 'cya_register_claim_cpt' );
 
 /**
@@ -2015,13 +2159,13 @@ function cya_output_claim_popup_js() {
 	<div id="cya-claim-modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99998;"></div>
 	<div id="cya-claim-modal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:#fff; border-radius:20px; box-shadow:0 10px 40px rgba(0,0,0,0.2); z-index:99999;">
 		<div style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-			<h2 style="margin:0; font-size:18px;"><?php esc_html_e( 'Claim this agency', 'claim-your-agency' ); ?></h2>
+			<h2 style="margin:0; font-size:18px;"><?php esc_html_e( 'Claim or request removal', 'claim-your-agency' ); ?></h2>
 			<button type="button" id="cya-claim-close" style="background:none;border:0;font-size:20px;line-height:1;cursor:pointer;">&times;</button>
 		</div>
 		<div class="cya-claim-body">
 			<div id="cya-claim-message" style="display:none; margin-bottom:12px; font-size:14px;"></div>
 			<div id="cya-claim-loading" style="display:none; margin-bottom:12px; font-size:14px; color:#555;">
-				<?php esc_html_e( 'Submitting your claim, please wait...', 'claim-your-agency' ); ?>
+				<?php esc_html_e( 'Submitting your request, please wait...', 'claim-your-agency' ); ?>
 			</div>
 			<div id="cya-claim-success" style="display:none; margin-bottom:12px; font-size:14px; text-align:center;">
 				<p id="cya-claim-success-text" style="margin-bottom:12px;"></p>
@@ -2034,6 +2178,16 @@ function cya_output_claim_popup_js() {
 				<input type="hidden" name="nonce" value="<?php echo esc_attr( $nonce ); ?>" />
 				<input type="hidden" name="agency_post_id" id="cya-agency-post-id" value="" />
 				<input type="hidden" name="listing_id" id="cya-listing-id" value="" />
+				<input type="hidden" name="request_type" id="cya-request-type-hidden" value="claim" />
+
+				<div class="cya-claim-field" id="cya-request-type-wrapper" style="margin-bottom:14px;">
+					<label for="cya-request-type"><?php esc_html_e( 'Claim or removal*', 'claim-your-agency' ); ?></label>
+					<select id="cya-request-type" name="cya_request_type" class="cya-claim-input" required>
+						<option value="claim"><?php esc_html_e( 'Claim', 'claim-your-agency' ); ?></option>
+						<option value="removal"><?php esc_html_e( 'Removal', 'claim-your-agency' ); ?></option>
+					</select>
+					<small style="display:block;margin-top:2px;color:#666;"><?php esc_html_e( 'Please select one.', 'claim-your-agency' ); ?></small>
+				</div>
 
 				<div class="cya-claim-row">
 					<div class="cya-claim-field">
@@ -2043,6 +2197,32 @@ function cya_output_claim_popup_js() {
 					<div class="cya-claim-field">
 						<label for="cya-claimant-email"><?php esc_html_e( 'Work email', 'claim-your-agency' ); ?></label>
 						<input type="email" id="cya-claimant-email" name="claimant_email" class="cya-claim-input" required />
+					</div>
+				</div>
+
+				<div class="cya-claim-field" style="display:none;">
+					<label for="cya-listing-url"><?php esc_html_e( 'Listing URL', 'claim-your-agency' ); ?></label>
+					<input type="text" id="cya-listing-url" name="listing_url" class="cya-claim-input" placeholder="<?php esc_attr_e( 'Paste the Bills Included listing link or enter the reference ID', 'claim-your-agency' ); ?>" />
+				</div>
+
+				<div id="cya-removal-only-fields" style="display:none;">
+					<div class="cya-claim-field">
+						<label for="cya-removal-scope"><?php esc_html_e( 'Removal scope*', 'claim-your-agency' ); ?></label>
+						<select id="cya-removal-scope" name="removal_scope" class="cya-claim-input">
+							<option value="listing"><?php esc_html_e( 'This listing only', 'claim-your-agency' ); ?></option>
+							<option value="agency"><?php esc_html_e( 'All listings for this agency', 'claim-your-agency' ); ?></option>
+						</select>
+					</div>
+					<div class="cya-claim-field">
+						<label for="cya-removal-reason"><?php esc_html_e( 'Reason for removal*', 'claim-your-agency' ); ?></label>
+						<select id="cya-removal-reason" name="removal_reason" class="cya-claim-input">
+							<option value=""><?php esc_html_e( 'Please select', 'claim-your-agency' ); ?></option>
+							<option value="no_longer_available"><?php esc_html_e( 'Listing is no longer available', 'claim-your-agency' ); ?></option>
+							<option value="associated_listings"><?php esc_html_e( 'This listing or all listings associated', 'claim-your-agency' ); ?></option>
+							<option value="incorrect_info"><?php esc_html_e( 'Incorrect or outdated information', 'claim-your-agency' ); ?></option>
+							<option value="do_not_appear"><?php esc_html_e( 'We do not wish this listing to appear on Bills Included', 'claim-your-agency' ); ?></option>
+							<option value="other"><?php esc_html_e( 'Other', 'claim-your-agency' ); ?></option>
+						</select>
 					</div>
 				</div>
 
@@ -2117,6 +2297,12 @@ function cya_output_claim_popup_js() {
 			var listingIdField= document.getElementById('cya-listing-id');
 			var agencyNameEl  = document.getElementById('cya-agency-name');
 			var agencyWebEl   = document.getElementById('cya-agency-website');
+			var requestTypeEl = document.getElementById('cya-request-type');
+			var requestTypeWrapper = document.getElementById('cya-request-type-wrapper');
+			var requestTypeHidden = document.getElementById('cya-request-type-hidden');
+			var removalFields = document.getElementById('cya-removal-only-fields');
+			var removalReasonEl = document.getElementById('cya-removal-reason');
+			var listingUrlEl = document.getElementById('cya-listing-url');
 
 			function cyaOpenModal() {
 				if (!cyaModal || !cyaBackdrop) return;
@@ -2154,6 +2340,22 @@ function cya_output_claim_popup_js() {
 				});
 			}
 
+			// Toggle removal-only fields when request type changes.
+			if (requestTypeEl) {
+				requestTypeEl.addEventListener('change', function() {
+					var val = requestTypeEl.value;
+					if (requestTypeHidden) {
+						requestTypeHidden.value = val;
+					}
+					if (removalFields) {
+						removalFields.style.display = (val === 'removal') ? 'block' : 'none';
+					}
+					if (removalReasonEl) {
+						removalReasonEl.required = (val === 'removal');
+					}
+				});
+			}
+
 			window.bia_open_claim_agency_popup = function(buttonEl, agencyId, listingId) {
 				if (!agencyId) {
 					console.error('Claim My Agency: missing agencyId');
@@ -2174,6 +2376,49 @@ function cya_output_claim_popup_js() {
 				if (agencyIdField && listingIdField) {
 					agencyIdField.value  = agencyId;
 					listingIdField.value = listingId || '';
+				}
+
+				// Determine mode: claim-only (button click) vs claim/removal (footer link).
+				var isClaimButton = !!buttonEl;
+				if (isClaimButton) {
+					// Claim-only: hide request-type selector and removal-only fields.
+					if (requestTypeWrapper) {
+						requestTypeWrapper.style.display = 'none';
+					}
+					if (requestTypeEl) {
+						requestTypeEl.value = 'claim';
+					}
+					if (requestTypeHidden) {
+						requestTypeHidden.value = 'claim';
+					}
+					if (removalFields) {
+						removalFields.style.display = 'none';
+					}
+					if (listingUrlEl) {
+						listingUrlEl.required = false;
+						listingUrlEl.value = '';
+					}
+					if (removalReasonEl) {
+						removalReasonEl.required = false;
+						removalReasonEl.value = '';
+					}
+				} else {
+					// Opened from "contact us here": show request-type (default removal) and removal fields.
+					if (requestTypeWrapper) {
+						requestTypeWrapper.style.display = 'block';
+					}
+					if (requestTypeEl) {
+						requestTypeEl.value = 'removal';
+					}
+					if (requestTypeHidden) {
+						requestTypeHidden.value = 'removal';
+					}
+					if (removalFields) {
+						removalFields.style.display = 'block';
+					}
+					if (removalReasonEl) {
+						removalReasonEl.required = true;
+					}
 				}
 				// Fetch agency details to pre-fill name & website.
 				var formData = new FormData();
@@ -2219,6 +2464,22 @@ function cya_output_claim_popup_js() {
 				cyaForm.addEventListener('submit', function(e) {
 					e.preventDefault();
 
+					var reqType = requestTypeEl ? requestTypeEl.value : 'claim';
+					if (requestTypeHidden) {
+						requestTypeHidden.value = reqType;
+					}
+
+					// Toggle required attributes based on flow.
+					if (removalReasonEl) {
+						removalReasonEl.required = (reqType === 'removal');
+					}
+
+					// Ensure action matches flow.
+					var actionInput = cyaForm.querySelector('input[name="action"]');
+					if (actionInput) {
+						actionInput.value = (reqType === 'removal') ? 'cya_submit_removal_request' : 'cya_submit_claim';
+					}
+
 					if (!document.getElementById('cya-claim-consent').checked) {
 						cyaMsg.style.display = 'block';
 						cyaMsg.style.color   = '#b32d2e';
@@ -2257,6 +2518,36 @@ function cya_output_claim_popup_js() {
 								cyaMsg.style.display = 'block';
 								cyaMsg.style.color = '#b32d2e';
 								cyaMsg.textContent = (json && json.data && json.data.message) ? json.data.message : '<?php echo esc_js( __( 'There was a problem submitting your claim. Please try again later.', 'claim-your-agency' ) ); ?>';
+							}
+							return;
+						}
+
+						// If this was a removal request, we just show the success message and stop.
+						if (json.data && json.data.flow === 'removal') {
+							if (submitBtn) submitBtn.disabled = false;
+							if (cyaLoading) cyaLoading.style.display = 'none';
+							if (cyaForm) {
+								cyaForm.reset();
+								if (requestTypeEl) {
+									requestTypeEl.value = 'removal';
+								}
+								if (requestTypeHidden) {
+									requestTypeHidden.value = 'removal';
+								}
+								if (removalFields) {
+									removalFields.style.display = 'block';
+								}
+					if (listingUrlEl) {
+						listingUrlEl.required = false;
+					}
+								if (removalReasonEl) {
+									removalReasonEl.required = true;
+								}
+								cyaForm.style.display = 'none';
+							}
+							if (cyaSuccess && cyaSuccessTxt) {
+								cyaSuccessTxt.textContent = json.data && json.data.message ? json.data.message : '<?php echo esc_js( __( 'Thanks, we\'ve received your request. Please check your email for confirmation.', 'claim-your-agency' ) ); ?>';
+								cyaSuccess.style.display = 'block';
 							}
 							return;
 						}
@@ -2579,6 +2870,130 @@ function cya_submit_claim() {
 }
 add_action( 'wp_ajax_cya_submit_claim', 'cya_submit_claim' );
 add_action( 'wp_ajax_nopriv_cya_submit_claim', 'cya_submit_claim' );
+
+/**
+ * AJAX: Submit a listing/agency removal request (from the combined claim/removal form).
+ */
+function cya_submit_removal_request() {
+	if ( empty( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'cya_claim_nonce' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Invalid request.', 'claim-your-agency' ) ) );
+	}
+
+	$claimant_name   = isset( $_POST['claimant_name'] ) ? sanitize_text_field( wp_unslash( $_POST['claimant_name'] ) ) : '';
+	$claimant_email  = isset( $_POST['claimant_email'] ) ? sanitize_email( wp_unslash( $_POST['claimant_email'] ) ) : '';
+	$listing_id      = isset( $_POST['listing_id'] ) ? (int) $_POST['listing_id'] : 0;
+	$listing_url_raw = isset( $_POST['listing_url'] ) ? sanitize_text_field( wp_unslash( $_POST['listing_url'] ) ) : '';
+	$removal_scope   = isset( $_POST['removal_scope'] ) ? sanitize_text_field( wp_unslash( $_POST['removal_scope'] ) ) : 'listing';
+	$removal_reason  = isset( $_POST['removal_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['removal_reason'] ) ) : '';
+
+	// Derive URL from listing ID when available so the field can stay hidden.
+	if ( $listing_id > 0 && get_post_status( $listing_id ) ) {
+		$listing_url_raw = get_permalink( $listing_id );
+	}
+
+	if ( $claimant_email === '' || $removal_reason === '' || ( $listing_id <= 0 && $listing_url_raw === '' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Work email, reason for removal, and a valid listing are required.', 'claim-your-agency' ) ) );
+	}
+
+	if ( empty( $_POST['claim_consent'] ) ) {
+		wp_send_json_error( array( 'message' => __( 'You must confirm you are authorised to act on behalf of the agent or property owner.', 'claim-your-agency' ) ) );
+	}
+
+	// Optional: reCAPTCHA verification (reuse the CYA settings).
+	$recaptcha_enabled = (int) get_option( 'cya_recaptcha_enabled', 0 );
+	$recaptcha_secret  = get_option( 'cya_recaptcha_secret_key', '' );
+
+	if ( $recaptcha_enabled && $recaptcha_secret ) {
+		$recaptcha_response = isset( $_POST['g-recaptcha-response'] ) ? sanitize_text_field( wp_unslash( $_POST['g-recaptcha-response'] ) ) : '';
+		if ( ! $recaptcha_response ) {
+			wp_send_json_error( array( 'message' => __( 'reCAPTCHA verification failed. Please try again.', 'claim-your-agency' ) ) );
+		}
+
+		$verify = wp_remote_post(
+			'https://www.google.com/recaptcha/api/siteverify',
+			array(
+				'body'    => array(
+					'secret'   => $recaptcha_secret,
+					'response' => $recaptcha_response,
+				),
+				'timeout' => 10,
+			)
+		);
+
+		if ( is_wp_error( $verify ) ) {
+			wp_send_json_error( array( 'message' => __( 'Could not verify reCAPTCHA. Please try again.', 'claim-your-agency' ) ) );
+		}
+
+		$verify_body = json_decode( wp_remote_retrieve_body( $verify ), true );
+		if ( empty( $verify_body['success'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'reCAPTCHA failed. Please try again.', 'claim-your-agency' ) ) );
+		}
+	}
+
+	// Create a removal request CPT entry.
+	if ( $listing_id > 0 ) {
+		$title = sprintf( __( 'Removal request for listing #%d', 'claim-your-agency' ), $listing_id );
+	} elseif ( $listing_url_raw ) {
+		$title = sprintf( __( 'Removal request for %s', 'claim-your-agency' ), $listing_url_raw );
+	} else {
+		$title = __( 'Removal request', 'claim-your-agency' );
+	}
+
+	$postarr = array(
+		'post_title'  => $title,
+		'post_status' => 'publish',
+		'post_type'   => 'cya_removal_request',
+	);
+
+	$request_id = wp_insert_post( $postarr, true );
+	if ( is_wp_error( $request_id ) ) {
+		wp_send_json_error( array( 'message' => __( 'Failed to create removal request. Please try again later.', 'claim-your-agency' ) ) );
+	}
+
+	$request_id = (int) $request_id;
+
+	update_post_meta( $request_id, 'request_type', 'removal' );
+	update_post_meta( $request_id, 'removal_scope', $removal_scope );
+	update_post_meta( $request_id, 'removal_reason', $removal_reason );
+	if ( $listing_id > 0 ) {
+		update_post_meta( $request_id, 'listing_id', $listing_id );
+	}
+	if ( $listing_url_raw ) {
+		update_post_meta( $request_id, 'listing_url', $listing_url_raw );
+	}
+	if ( $claimant_name ) {
+		update_post_meta( $request_id, 'claimant_name', $claimant_name );
+	}
+	update_post_meta( $request_id, 'claimant_email', $claimant_email );
+
+	// Send confirmation email to the requester.
+	$subject = __( 'Confirm your listing removal request', 'claim-your-agency' );
+	$body    = __( "Dear Sirs,\n\nPlease confirm your request to remove the following listing from Bills Included by replying to this email.\n\nBest regards,\nBills Included team", 'claim-your-agency' );
+
+	$headers = array( 'Content-Type: text/plain; charset=UTF-8' );
+
+	wp_mail( $claimant_email, $subject, $body, $headers );
+
+	// Optionally notify the site admin as well.
+	$admin_email = get_option( 'admin_email' );
+	if ( $admin_email && $admin_email !== $claimant_email ) {
+		wp_mail(
+			$admin_email,
+			sprintf( __( 'New removal request from %s', 'claim-your-agency' ), $claimant_email ),
+			sprintf( "Scope: %s\nReason: %s\nListing ID: %s\nListing URL: %s\n", $removal_scope, $removal_reason, $listing_id ? $listing_id : '-', $listing_url_raw ),
+			$headers
+		);
+	}
+
+	wp_send_json_success(
+		array(
+			'flow'    => 'removal',
+			'message' => __( "Thanks, we've received your request. You will need to respond to our email, please check your spam. Once your response has been received, we’ll review it shortly and confirm by email once the listing has been removed. Removal requests are usually processed within 1–3 business days.", 'claim-your-agency' ),
+		)
+	);
+}
+add_action( 'wp_ajax_cya_submit_removal_request', 'cya_submit_removal_request' );
+add_action( 'wp_ajax_nopriv_cya_submit_removal_request', 'cya_submit_removal_request' );
 
 /**
  * AJAX: Mark a claim's email as verified after Firebase Email Link completion.
