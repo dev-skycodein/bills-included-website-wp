@@ -512,7 +512,7 @@ iframe {
 		height: 150px;
 	}
 	.listing-overview {		
-		padding: 15px 5px 10px 10px;		
+		padding: 15px !important;		
 	}
 	.bootstrap-wrapper .btn.btn-big {		
 		border-radius: 8px;

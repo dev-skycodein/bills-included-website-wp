@@ -519,6 +519,81 @@ if (!function_exists('listinghub_get_search_args')) {
 				);
 			}
 		}
+
+		// Bedrooms min/max (meta key: bedrooms)
+		$min_bedrooms = isset( $_REQUEST[ $field_prefix . 'search_bedrooms_min' ] ) ? intval( $_REQUEST[ $field_prefix . 'search_bedrooms_min' ] ) : 0;
+		$max_bedrooms = isset( $_REQUEST[ $field_prefix . 'search_bedrooms_max' ] ) ? intval( $_REQUEST[ $field_prefix . 'search_bedrooms_max' ] ) : 0;
+		if ( $min_bedrooms || $max_bedrooms ) {
+			if ( $min_bedrooms && $max_bedrooms && $min_bedrooms > $max_bedrooms ) {
+				$tmp = $min_bedrooms;
+				$min_bedrooms = $max_bedrooms;
+				$max_bedrooms = $tmp;
+			}
+			$beds_clause = array(
+				'key'     => 'bedrooms',
+				'type'    => 'NUMERIC',
+			);
+			if ( $min_bedrooms && $max_bedrooms ) {
+				$beds_clause['value']   = array( $min_bedrooms, $max_bedrooms );
+				$beds_clause['compare'] = 'BETWEEN';
+			} elseif ( $min_bedrooms ) {
+				$beds_clause['value']   = $min_bedrooms;
+				$beds_clause['compare'] = '>=';
+			} else {
+				$beds_clause['value']   = $max_bedrooms;
+				$beds_clause['compare'] = '<=';
+			}
+			if ( isset( $search_arg['meta_query'] ) && is_array( $search_arg['meta_query'] ) ) {
+				if ( ! isset( $search_arg['meta_query']['relation'] ) ) {
+					$search_arg['meta_query']['relation'] = 'AND';
+				}
+				$search_arg['meta_query'][] = $beds_clause;
+			} else {
+				$search_arg['meta_query'] = array(
+					'relation' => 'AND',
+					$beds_clause,
+				);
+			}
+			$listinghub_filter_badge = $listinghub_filter_badge + 1;
+		}
+
+		// Bathrooms min/max (meta key: bathrooms)
+		$min_bathrooms = isset( $_REQUEST[ 'sfbathrooms_min' ] ) ? intval( $_REQUEST[ 'sfbathrooms_min' ] ) : 0;
+		$max_bathrooms = isset( $_REQUEST[ 'sfbathrooms_max' ] ) ? intval( $_REQUEST[ 'sfbathrooms_max' ] ) : 0;
+		if ( $min_bathrooms || $max_bathrooms ) {
+			if ( $min_bathrooms && $max_bathrooms && $min_bathrooms > $max_bathrooms ) {
+				$tmp = $min_bathrooms;
+				$min_bathrooms = $max_bathrooms;
+				$max_bathrooms = $tmp;
+			}
+			$baths_clause = array(
+				'key'  => 'bathrooms',
+				'type' => 'NUMERIC',
+			);
+			if ( $min_bathrooms && $max_bathrooms ) {
+				$baths_clause['value']   = array( $min_bathrooms, $max_bathrooms );
+				$baths_clause['compare'] = 'BETWEEN';
+			} elseif ( $min_bathrooms ) {
+				$baths_clause['value']   = $min_bathrooms;
+				$baths_clause['compare'] = '>=';
+			} else {
+				$baths_clause['value']   = $max_bathrooms;
+				$baths_clause['compare'] = '<=';
+			}
+			if ( isset( $search_arg['meta_query'] ) && is_array( $search_arg['meta_query'] ) ) {
+				if ( ! isset( $search_arg['meta_query']['relation'] ) ) {
+					$search_arg['meta_query']['relation'] = 'AND';
+				}
+				$search_arg['meta_query'][] = $baths_clause;
+			} else {
+				$search_arg['meta_query'] = array(
+					'relation' => 'AND',
+					$baths_clause,
+				);
+			}
+			$listinghub_filter_badge = $listinghub_filter_badge + 1;
+		}
+
 		if(isset($_REQUEST['latitude']) AND $_REQUEST['latitude']!=''){
 			$search_arg['lat']=$_REQUEST['latitude'];
 			$listinghub_filter_badge=$listinghub_filter_badge+1;

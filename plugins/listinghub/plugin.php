@@ -198,6 +198,7 @@
 				add_shortcode('listinghub_archive_grid_top_map', array($this, 'listinghub_archive_grid_top_map_func'));
 				add_shortcode('listinghub_search', array($this, 'listinghub_search_func'));
 				add_shortcode('listinghub_search_popup', array($this, 'listinghub_search_popup_func'));
+				add_shortcode('listinghub_search_bar', array($this, 'listinghub_search_bar_func'));
 				add_shortcode('listing_filter', array($this, 'listinghub_listing_filter_func'));					
 				add_shortcode('listinghub_categories_carousel', array($this, 'listinghub_categories_carousel_func'));
 				add_shortcode('listinghub_tags_carousel', array($this, 'listinghub_tags_carousel_func'));
@@ -3369,6 +3370,12 @@
 			public function listinghub_search_func($atts = ''){
 				ob_start();	
 				include( ep_listinghub_template. 'listing/listing_search.php');
+				$content = ob_get_clean();
+				return $content;
+			}
+			public function listinghub_search_bar_func($atts = ''){
+				ob_start();
+				include( ep_listinghub_template. 'listing/listing_search_bar.php');
 				$content = ob_get_clean();
 				return $content;
 			}

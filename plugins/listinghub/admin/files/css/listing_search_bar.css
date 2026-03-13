@@ -1,0 +1,506 @@
+/**
+ * ListingHub Search Bar – purple bar design
+ * Shortcode: [listinghub_search_bar]
+ */
+.listinghub-search-bar-wrap {
+	--listinghub-sb-purple: #9a6afe;
+	--listinghub-sb-purple-dark: #4a3d85;
+	--listinghub-sb-purple-light: #6d5bb3;
+	--listinghub-sb-bg: #fff;
+	--listinghub-sb-border: rgba(255,255,255,0.25);
+	--listinghub-sb-text: #1a1a1a;
+	--listinghub-sb-text-muted: #555;
+	--listinghub-sb-radius: 8px;
+	--listinghub-sb-height: 48px;
+	--listinghub-sb-shadow: 0 2px 12px rgba(91, 74, 158, 0.15);
+	font-size: 14px;
+	margin-bottom: 1rem;
+	box-shadow: 0px 18px 40px rgb(25 15 9 / 10%);
+}
+
+/* Main bar */
+.listinghub-search-bar-form .listinghub-search-bar-inner {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
+	background: var(--listinghub-sb-purple);
+	padding: 15px 14px;
+	border-radius: var(--listinghub-sb-radius);
+	box-shadow: var(--listinghub-sb-shadow);
+	justify-content: space-between;
+}
+
+.listinghub-sb-field {
+	position: relative;
+}
+
+/* Search input */
+.listinghub-sb-search-wrap {
+	display: flex;
+	align-items: center;
+	background: var(--listinghub-sb-bg);
+	border-radius: 6px;
+	min-width: 160px;
+	max-width: 220px;
+	height: var(--listinghub-sb-height);
+	padding: 0 10px 0 36px;
+	border: 1px solid var(--listinghub-sb-border);
+}
+
+.listinghub-sb-search-wrap .listinghub-sb-icon-search {
+	position: absolute;
+	left: 12px;
+	width: 18px;
+	height: 18px;
+	background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23555'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/%3E%3C/svg%3E") center/contain no-repeat;
+	pointer-events: none;
+}
+
+.listinghub-sb-search-wrap .listinghub-sb-input {
+	flex: 1;
+	min-width: 0;
+	border: 0;
+	background: transparent;
+	padding: 0 8px;
+	font-size: 14px;
+	color: var(--listinghub-sb-text);
+	outline: none;
+}
+
+.listinghub-sb-search-wrap .listinghub-sb-input::placeholder {
+	color: var(--listinghub-sb-text-muted);
+}
+
+.listinghub-sb-clear {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--listinghub-sb-text-muted);
+	font-size: 18px;
+	line-height: 1;
+	cursor: pointer;
+	border-radius: 4px;
+}
+
+.listinghub-sb-clear:hover {
+	color: var(--listinghub-sb-text);
+	background: rgba(0,0,0,0.06);
+}
+
+.listinghub-sb-search-wrap.has-text .listinghub-sb-clear {
+	display: flex;
+	min-width: unset !important;
+}
+
+/* Selects (radius, price) */
+.listinghub-sb-select {
+	height: var(--listinghub-sb-height);
+	min-height: var(--listinghub-sb-height);
+	padding: 0 32px 0 12px;
+	border-radius: 6px;
+	border: 1px solid var(--listinghub-sb-border);
+	background: var(--listinghub-sb-bg);
+	color: var(--listinghub-sb-text);
+	font-size: 14px;
+	cursor: pointer;
+	appearance: none;
+	max-width: 160px;
+}
+
+.listinghub-sb-dropdown-wrap .listinghub-sb-select {
+	min-width: 120px;
+}
+
+.listinghub-sb-dropdown-wrap .listinghub-sb-arrow-select {
+	position: absolute;
+	right: 10px;
+	top: 50%;
+	transform: translateY(-50%);
+}
+
+.listinghub-sb-dropdown-wrap.is-open .listinghub-sb-arrow-select {
+	transform: translateY(-50%) rotate(180deg);
+}
+
+/* Beds / renter / simple / property triggers + panels */
+.listinghub-search-bar-wrap .listinghub-sb-beds-trigger,
+.listinghub-search-bar-wrap .listinghub-sb-renter-trigger,
+.listinghub-search-bar-wrap .listinghub-sb-simple-trigger,
+.listinghub-search-bar-wrap .listinghub-sb-property-trigger {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	height: var(--listinghub-sb-height);
+	padding: 0 12px;
+	border-radius: 6px;
+	border: 1px solid var(--listinghub-sb-border) !important;
+	background: var(--listinghub-sb-bg) !important;
+	color: var(--listinghub-sb-text) !important;
+	font-size: 14px;
+	cursor: pointer;
+	min-width: 90px;
+}
+
+.listinghub-sb-arrow {
+	display: inline-block;
+	width: 0;
+	height: 0;
+	border-left: 5px solid transparent;
+	border-right: 5px solid transparent;
+	border-top: 6px solid var(--listinghub-sb-text-muted);
+	transition: transform 0.2s;
+}
+
+.listinghub-sb-beds-wrap.is-open .listinghub-sb-arrow,
+.listinghub-sb-renter-wrap.is-open .listinghub-sb-arrow,
+.listinghub-sb-simple-wrap.is-open .listinghub-sb-arrow,
+.listinghub-sb-property-wrap.is-open .listinghub-sb-arrow,
+.listinghub-sb-baths-wrap.is-open .listinghub-sb-arrow {
+	transform: rotate(180deg);
+}
+
+.listinghub-sb-beds-panel,
+.listinghub-sb-renter-panel,
+.listinghub-sb-simple-panel,
+.listinghub-sb-property-panel {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	margin-top: 4px;
+	width: max-content;
+	max-width: 240px;
+	background: var(--listinghub-sb-bg);
+	border: 1px solid #ddd;
+	border-radius: 6px;
+	box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+	z-index: 5;
+	padding: 10px 12px;
+}
+
+.listinghub-sb-beds-panel[hidden],
+.listinghub-sb-renter-panel[hidden],
+.listinghub-sb-simple-panel[hidden],
+.listinghub-sb-property-panel[hidden] {
+	display: none !important;
+}
+
+.listinghub-sb-beds-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+.listinghub-sb-beds-row:last-child {
+	margin-bottom: 0;
+}
+
+.listinghub-sb-beds-row label {
+	font-size: 13px;
+	color: var(--listinghub-sb-text-muted);
+}
+
+.listinghub-sb-beds-row .listinghub-sb-select {
+	min-width: 70px;
+	max-width: 80px;
+	border: 1px solid #a39fac;
+	outline: unset;
+	/* show a small arrow inside the beds/baths min/max selects */
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='%23555'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 6px center;
+	padding-right: 20px;
+}
+
+.listinghub-sb-simple-panel {
+	padding: 5px 0;
+	max-height: 300px;
+	overflow-y: auto;
+}
+
+.listinghub-sb-simple-panel button {
+	background: transparent;
+	border: unset;
+	display: block;
+	width: 100%;
+	text-align: left;
+	padding: 6px 12px;
+	border-radius: 5px;
+}
+
+.listinghub-sb-simple-panel button:hover {
+	background: #9489c0;
+	color: #fff;
+}
+
+.listinghub-sb-checklist-panel .listinghub-sb-check-item {
+	display: block;
+	margin-bottom: 6px;
+	cursor: pointer;
+}
+.listinghub-sb-checklist-panel .listinghub-sb-check-item:first-child{
+	margin-top: 0;
+}
+.listinghub-sb-checklist-panel .listinghub-sb-check-item:last-child {
+	margin-bottom: 0;
+}
+
+.listinghub-sb-check-item input {
+	margin-right: 8px;
+}
+
+/* Buttons */
+.listinghub-sb-btn {
+	height: var(--listinghub-sb-height);
+	padding: 0 18px;
+	border-radius: 6px;
+	border: 0;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.2s, transform 0.15s;
+}
+
+.listinghub-sb-btn-search {
+	background: #000;
+	color: #fff;
+	padding: 0 30px;
+    letter-spacing: .5px;
+}
+
+.listinghub-sb-btn-search:hover {
+	box-shadow: 0px 0px 5px rgba(0,0,0,0.06);
+}
+
+.listinghub-sb-btn-filters {
+	background: rgba(255,255,255,0.2);
+	color: #fff;
+	border: 1px solid var(--listinghub-sb-border);
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.listinghub-sb-btn-filters:hover {
+	background: rgba(255,255,255,0.3);
+}
+
+.listinghub-sb-btn-filters[aria-expanded="true"] {
+	background: rgba(255,255,255,0.35);
+}
+
+.listinghub-sb-filters-icon-svg {
+	display: block;
+}
+
+.listinghub-sb-filters-label {
+	display: inline-block;
+}
+
+/* Filters panel */
+.listinghub-sb-filters-panel {
+	padding: 5px 15px 15px;
+    background: var(--listinghub-sb-purple);
+    margin-top: -5px;
+    border-radius: 0 0 var(--listinghub-sb-radius) var(--listinghub-sb-radius);
+}
+
+.listinghub-sb-filters-panel[hidden] {
+	display: none !important;
+}
+
+.listinghub-sb-filters-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 16px;
+}
+
+.listinghub-sb-chip {
+	padding: 8px 14px;
+	border-radius: 20px;
+	border: 1px solid #d1cce0;
+	background: var(--listinghub-sb-bg);
+	color: var(--listinghub-sb-text-muted);
+	font-size: 13px;
+	cursor: pointer;
+	transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+
+.listinghub-sb-chip:hover,
+.listinghub-sb-chip.highlight {
+	border-color: var(--listinghub-sb-purple);
+	background: rgba(91, 74, 158, 0.08);
+	color: var(--listinghub-sb-purple);
+}
+
+.listinghub-sb-filter-title {
+	font-size: 14px;
+	font-weight: 600;
+	margin: 0 0 10px 0;
+	color: var(--listinghub-sb-text);
+}
+
+.listinghub-sb-filter-section {
+	margin-bottom: 18px;
+}
+
+.listinghub-sb-filter-section:last-of-type {
+	margin-bottom: 0;
+}
+
+.listinghub-sb-checklist {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 16px;
+}
+
+.listinghub-sb-checklist .listinghub-sb-check-item {
+	display: flex;
+	align-items: center;
+	cursor: pointer;
+	margin: 0;
+}
+
+/* Locations popup */
+.listinghub-sb-locations-trigger {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	max-width: 280px;
+	height: 40px;
+	padding: 23px 12px;
+	border: 1px solid #d1cce0;
+	border-radius: 6px;
+	background: var(--listinghub-sb-bg);
+	color: var(--listinghub-sb-text);
+	font-size: 14px;
+	cursor: pointer;
+	text-align: left;
+}
+
+.listinghub-sb-locations-section.is-open .listinghub-sb-arrow {
+	transform: rotate(180deg);
+}
+
+.listinghub-sb-locations-popup {
+	position: absolute;
+	left: 0;
+	top: 100%;
+	margin-top: 6px;
+	width: 100%;
+	max-width: 320px;
+	max-height: 280px;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	background: var(--listinghub-sb-bg);
+	border: 1px solid #ddd;
+	border-radius: 6px;
+	box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+	z-index: 5;
+}
+
+.listinghub-sb-locations-popup[hidden] {
+	display: none !important;
+}
+
+.listinghub-sb-locations-search {
+	width: 100%;
+	padding: 10px 12px;
+	border: 0;
+	border-bottom: 1px solid #eee;
+	font-size: 14px;
+	outline: none;
+}
+
+.listinghub-sb-locations-list {
+	overflow-y: auto;
+	max-height: 200px;
+}
+
+.listinghub-sb-locations-list .listinghub-sb-check-item {
+	display: block;
+	margin-bottom: 6px;
+}
+
+.listinghub-sb-locations-list .listinghub-sb-check-item.hide-by-search {
+	display: none;
+}
+
+.listinghub-sb-locations-section {
+	position: relative;
+}
+
+.listinghub-sb-select-all {
+	margin-bottom: 0;
+	padding-bottom: 8px;
+	border-bottom: 1px solid #eee;
+}
+
+.listinghub-sb-btn-apply {
+	background: #000000;
+	color: #fff;
+	text-transform: capitalize;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+	.listinghub-search-bar-form .listinghub-search-bar-inner {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.listinghub-sb-search-wrap {
+		max-width: none;
+	}
+
+	.listinghub-sb-dropdown-wrap .listinghub-sb-select,
+	.listinghub-sb-beds-trigger,
+	.listinghub-sb-renter-trigger {
+		max-width: none;
+		min-width: 0;
+	}
+}
+
+.screen-reader-text {
+	clip: rect(1px, 1px, 1px, 1px);
+	height: 1px;
+	overflow: hidden;
+	position: absolute;
+	width: 1px;
+}
+.listinghub-sb-filters-inner {
+    display: flex;
+	gap: 8px 12px;
+    align-items: center;
+	flex-wrap: wrap;
+}
+.listinghub-sb-filters-inner > div {
+    min-width: 200px;
+	margin: 0;
+}
+
+.listinghub-sb-filters-inner > div .listinghub-sb-field button {
+    width: 100%;
+}
+.listinghub-search-bar-inner>div, .listinghub-search-bar-inner > div > button {
+    min-width: 140px !important;
+}
+.listinghub-sb-field.is-open {
+    box-shadow: 0px 0px 20px 5px #00000057;
+}
+.listinghub-search-bar-inner>div.listinghub-sb-price-min-wrap, .listinghub-search-bar-inner>div.listinghub-sb-price-min-wrap > button,
+.listinghub-search-bar-inner>div.listinghub-sb-price-max-wrap, .listinghub-search-bar-inner>div.listinghub-sb-price-max-wrap > button,
+.listinghub-search-bar-inner>div.listinghub-sb-beds-wrap, .listinghub-search-bar-inner>div.listinghub-sb-beds-wrap > button   {
+    min-width: 120px !important;
+}
