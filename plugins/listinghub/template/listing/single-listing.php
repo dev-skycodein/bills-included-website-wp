@@ -37,6 +37,13 @@ $listingid = is_singular( $listinghub_directory_url ) ? get_queried_object_id() 
 // If this listing has been explicitly removed (gsli_removed = 1), do not show full details.
 if ( (string) get_post_meta( $listingid, 'gsli_removed', true ) === '1' ) {
 	?>
+	<style>
+		.container.single-listing-removed {
+			min-height: 70vh;
+			display: flex;
+			align-items: center;
+		}
+	</style>
 	<div class="container single-listing-removed">
 		<div class="row">
 			<div class="col-12">

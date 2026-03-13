@@ -399,10 +399,26 @@ function gsli_render_admin_page() {
 		<h2>Imported Listings</h2>
 		<p>Listings added by this plugin (identified by <code>unique_id</code>). Delete removes the post, all meta, and associated media (featured + gallery images).</p>
 		<?php
+		// Initialise log file so admin-side search/debug logs are written.
+		if (empty($GLOBALS['gsli_log_file'])) {
+			gsli_init_log();
+		}
+
 		$current_page    = isset($_GET['gsli_page']) ? max(1, (int) $_GET['gsli_page']) : 1;
 		$per_page        = 200;
 		$selected_agency = isset($_GET['gsli_agency']) ? (int) $_GET['gsli_agency'] : 0;
 		$search_term     = isset($_GET['gsli_search']) ? sanitize_text_field(wp_unslash($_GET['gsli_search'])) : '';
+
+		// Log what the admin screen thinks the filters are.
+		gsli_log('Admin imported listings filter.', array(
+			'gsli_page_raw'   => isset($_GET['gsli_page']) ? $_GET['gsli_page'] : null,
+			'gsli_agency_raw' => isset($_GET['gsli_agency']) ? $_GET['gsli_agency'] : null,
+			'gsli_search_raw' => isset($_GET['gsli_search']) ? $_GET['gsli_search'] : null,
+			'current_page'    => $current_page,
+			'per_page'        => $per_page,
+			'selected_agency' => $selected_agency,
+			'search_term'     => $search_term,
+		));
 
 		$import_query = gsli_get_imported_listings($current_page, $per_page, $selected_agency, $search_term);
 
@@ -490,9 +506,10 @@ function gsli_render_admin_page() {
 						$unique_id          = get_post_meta($post->ID, 'unique_id', true);
 						$availability_value = get_post_meta($post->ID, 'availability_status', true);
 						$availability_label = $availability_value !== '' ? $availability_value : '—';
-						$edit_url = sprintf($edit_base, $post->ID);
-						$view_url = get_permalink($post->ID);
-						$gallery_ids = get_post_meta($post->ID, 'image_gallery_ids', true);
+						$removed_flag       = (string) get_post_meta($post->ID, 'gsli_removed', true) === '1';
+						$edit_url           = sprintf($edit_base, $post->ID);
+						$view_url           = get_permalink($post->ID);
+						$gallery_ids        = get_post_meta($post->ID, 'image_gallery_ids', true);
 						$image_count = 0;
 						$ids = array();
 						if (!empty($gallery_ids)) {
@@ -508,12 +525,22 @@ function gsli_render_admin_page() {
 					?>
 					<tr>
 						<th scope="row" class="check-column">
-							<input type="checkbox" name="gsli_delete_ids[]" value="<?php echo esc_attr($post->ID); ?>" class="gsli-row-checkbox" />
+							<?php if (!$removed_flag) : ?>
+								<input type="checkbox" name="gsli_delete_ids[]" value="<?php echo esc_attr($post->ID); ?>" class="gsli-row-checkbox" />
+							<?php endif; ?>
 						</th>
 						<td><?php echo esc_html($post->ID); ?></td>
 						<td><strong><?php echo esc_html($post->post_title); ?></strong></td>
 						<td><code><?php echo esc_html($unique_id); ?></code></td>
-						<td><?php echo esc_html($post->post_status); ?></td>
+						<td>
+							<?php
+							if ($removed_flag) {
+								echo esc_html__('removed', 'gsheet-listing-importer');
+							} else {
+								echo esc_html($post->post_status);
+							}
+							?>
+						</td>
 						<td><?php echo esc_html($availability_label); ?></td>
 						<td><?php echo esc_html(get_the_date('', $post)); ?></td>
 						<td><?php echo esc_html($image_count); ?></td>
@@ -722,8 +749,9 @@ function gsli_do_import($dry_run = null) {
 		$existing_id = gsli_find_existing_post_id($post_type, $data, $postarr);
 		// When gsli_find_existing_post_id returns -1, it means this listing has the
 		// gsli_removed flag set and must NEVER be re-created or updated from the sheet.
-		// In that case, skip this row entirely.
+		// In that case, skip this row entirely and count it as skipped.
 		if ($existing_id === -1) {
+			$skipped++;
 			gsli_log('Skipped row for removed listing.', array('row' => $index + 1, 'title' => $title));
 			continue;
 		}
@@ -1293,54 +1321,77 @@ function gsli_get_imported_listings($paged = 1, $per_page = 50, $agency_post_id 
 
 	$search = trim((string) $search);
 	if ($search !== '') {
-		global $wpdb;
-		$like = '%' . $wpdb->esc_like($search) . '%';
-
-		// Search common meta keys (including unique_id) for the term.
-		$meta_search = array(
-			'relation' => 'OR',
-			array(
-				'key'     => 'unique_id',
-				'value'   => $like,
-				'compare' => 'LIKE',
-			),
-			array(
-				'key'     => 'address',
-				'value'   => $like,
-				'compare' => 'LIKE',
-			),
-			array(
-				'key'     => 'city',
-				'value'   => $like,
-				'compare' => 'LIKE',
-			),
-			array(
-				'key'     => 'agency_id',
-				'value'   => $like,
-				'compare' => 'LIKE',
-			),
-			array(
-				'key'     => 'availability_status',
-				'value'   => $like,
-				'compare' => 'LIKE',
-			),
-			array(
-				'key'     => 'source_listing_url',
-				'value'   => $like,
-				'compare' => 'LIKE',
-			),
-		);
-
-		$meta_query[] = $meta_search;
-		$args['meta_query'] = $meta_query;
-
-		// If the user entered a numeric value, also allow direct lookup by post ID.
+		// If the user entered a numeric value, treat it as a direct post ID search.
 		if (ctype_digit($search)) {
-			$args['post__in'] = array( (int) $search );
+			$args['post__in'] = array((int) $search);
+		} else {
+			global $wpdb;
+			$like = '%' . $wpdb->esc_like($search) . '%';
+
+			// Search common meta keys (including unique_id) for the term.
+			$meta_search = array(
+				'relation' => 'OR',
+				array(
+					'key'     => 'unique_id',
+					'value'   => $search, // exact match for unique_id
+					'compare' => '=',
+				),
+				array(
+					'key'     => 'address',
+					'value'   => $like,
+					'compare' => 'LIKE',
+				),
+				array(
+					'key'     => 'city',
+					'value'   => $like,
+					'compare' => 'LIKE',
+				),
+				array(
+					'key'     => 'agency_id',
+					'value'   => $like,
+					'compare' => 'LIKE',
+				),
+				array(
+					'key'     => 'availability_status',
+					'value'   => $like,
+					'compare' => 'LIKE',
+				),
+				array(
+					'key'     => 'source_listing_url',
+					'value'   => $like,
+					'compare' => 'LIKE',
+				),
+			);
+
+			$meta_query[]      = $meta_search;
+			$args['meta_query'] = $meta_query;
 		}
 	}
 
+	// Log query args before running.
+	gsli_log('Search query args.', array(
+		'paged'          => $paged,
+		'per_page'       => $per_page,
+		'agency_post_id' => $agency_post_id,
+		'search'         => $search,
+		'args'           => $args,
+	));
+
 	$query = new WP_Query($args);
+
+	// Log IDs and their unique_id meta.
+	$ids = wp_list_pluck($query->posts, 'ID');
+	$ids_with_unique = array();
+	if (!empty($ids)) {
+		foreach ($ids as $id) {
+			$ids_with_unique[$id] = get_post_meta($id, 'unique_id', true);
+		}
+	}
+
+	gsli_log('Search query results.', array(
+		'found_posts' => $query->found_posts,
+		'ids'         => $ids_with_unique,
+	));
 
 	return $query;
 }
