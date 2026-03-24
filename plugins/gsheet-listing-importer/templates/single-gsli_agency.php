@@ -11,9 +11,10 @@ get_header();
 
 while ( have_posts() ) {
 	the_post();
-	$agency_id   = get_the_ID();
-	$agency_name = get_the_title();
-	$agency_desc = get_the_content();
+	$agency_id        = get_the_ID();
+	$agency_name      = get_the_title();
+	$agency_desc      = get_the_content();
+	$agency_removed   = (string) get_post_meta( $agency_id, 'gsli_agency_removed', true ) === '1';
 	// Single source for logo – agency_logo (same key used by importer, edit form, and listing sidebar).
 	$agency_logo_url = get_post_meta( $agency_id, 'agency_logo', true );
 	$agency_logo_url = is_string( $agency_logo_url ) ? trim( $agency_logo_url ) : '';
@@ -108,8 +109,12 @@ while ( have_posts() ) {
 		</div>
 		<div class="agency-listings">
 			<?php
-			// Same UI as all-listings (filters + grid), no map, contained width.
-			echo do_shortcode( '[listinghub_archive_grid_no_map agency_post_id="' . (int) $agency_id . '" search-form="on-page" wrapper_class="container"]' );
+			if ( $agency_removed ) {
+				echo '<div class="container py-5 text-center text-muted"><p class="lead mb-0">' . esc_html__( 'This agency has been removed from Bills Included.', 'gsheet-listing-importer' ) . '</p></div>';
+			} else {
+				// Same UI as all-listings (filters + grid), no map, contained width.
+				echo do_shortcode( '[listinghub_archive_grid_no_map agency_post_id="' . (int) $agency_id . '" search-form="on-page" wrapper_class="container"]' );
+			}
 			?>
 		</div>
 	</article>

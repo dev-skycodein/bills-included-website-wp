@@ -182,14 +182,20 @@ function cya_removal_request_custom_column( $column, $post_id ) {
 		return;
 	}
 
-	$listing_id = (int) get_post_meta( $post_id, 'listing_id', true );
-	$removed    = $listing_id > 0 ? (string) get_post_meta( $listing_id, 'gsli_removed', true ) === '1' : false;
+	$listing_id    = (int) get_post_meta( $post_id, 'listing_id', true );
+	$removal_scope = get_post_meta( $post_id, 'removal_scope', true ); // 'listing' or 'agency'.
+	$removed       = $listing_id > 0 ? (string) get_post_meta( $listing_id, 'gsli_removed', true ) === '1' : false;
+	$agency_id     = $listing_id > 0 ? (int) get_post_meta( $listing_id, 'agency_post_id', true ) : 0;
+	$agency_removed = $agency_id > 0 ? (string) get_post_meta( $agency_id, 'gsli_agency_removed', true ) === '1' : false;
+
 	if ( $listing_id <= 0 ) {
 		echo '&mdash;';
 		return;
 	}
 
-	if ( ! $removed ) {
+	$already_processed = $removed || $agency_removed;
+
+	if ( ! $already_processed ) {
 		$remove_url = wp_nonce_url(
 			add_query_arg(
 				array(
@@ -214,17 +220,27 @@ function cya_removal_request_custom_column( $column, $post_id ) {
 		'cya_delete_removal_request_' . $post_id
 	);
 
-	if ( $removed ) {
+	// Decide disabled label based on scope + flags.
+	if ( 'agency' === $removal_scope && ( $agency_removed || $removed ) ) {
+		echo '<span class="button button-small disabled" style="opacity:0.6; pointer-events:none;">' . esc_html__( 'Agency removed', 'claim-your-agency' ) . '</span> ';
+	} elseif ( $removed ) {
 		echo '<span class="button button-small disabled" style="opacity:0.6; pointer-events:none;">' . esc_html__( 'Listing removed', 'claim-your-agency' ) . '</span> ';
 	} else {
-		echo '<a class="button button-small" href="' . esc_url( $remove_url ) . '">' . esc_html__( 'Remove this listing', 'claim-your-agency' ) . '</a> ';
+		$label = ( 'agency' === $removal_scope )
+			? esc_html__( 'Remove agency', 'claim-your-agency' )
+			: esc_html__( 'Remove this listing', 'claim-your-agency' );
+		echo '<a class="button button-small" href="' . esc_url( $remove_url ) . '">' . $label . '</a> ';
 	}
 	echo '<a class="button button-small" href="' . esc_url( $delete_url ) . '">' . esc_html__( 'Delete request', 'claim-your-agency' ) . '</a>';
 }
 add_action( 'manage_cya_removal_request_posts_custom_column', 'cya_removal_request_custom_column', 10, 2 );
 
 /**
- * Handle the "Remove this listing" admin action: set gsli_removed = 1 on the listing.
+ * Handle the removal action from a removal request.
+ *
+ * Scope:
+ * - removal_scope = 'listing' → mark only this listing as removed.
+ * - removal_scope = 'agency'  → mark the agency and all its listings as removed.
  */
 function cya_handle_removal_request_action() {
 	if ( ! current_user_can( 'manage_options' ) ) {
@@ -242,8 +258,39 @@ function cya_handle_removal_request_action() {
 		wp_die( esc_html__( 'Invalid nonce.', 'claim-your-agency' ) );
 	}
 
-	// Set gsli_removed flag on the listing.
-	update_post_meta( $listing_id, 'gsli_removed', 1 );
+	$removal_scope = get_post_meta( $request_id, 'removal_scope', true );
+
+	if ( 'agency' === $removal_scope ) {
+		// Remove all listings for this agency and mark the agency as removed.
+		$agency_id = (int) get_post_meta( $listing_id, 'agency_post_id', true );
+		if ( $agency_id > 0 ) {
+			update_post_meta( $agency_id, 'gsli_agency_removed', 1 );
+
+			$listings = get_posts(
+				array(
+					'post_type'      => gsli_get_listing_post_type(),
+					'post_status'    => 'any',
+					'posts_per_page' => -1,
+					'fields'         => 'ids',
+					'meta_query'     => array(
+						array(
+							'key'   => 'agency_post_id',
+							'value' => $agency_id,
+						),
+					),
+				)
+			);
+
+			if ( ! empty( $listings ) ) {
+				foreach ( $listings as $lid ) {
+					update_post_meta( $lid, 'gsli_removed', 1 );
+				}
+			}
+		}
+	} else {
+		// Default: set gsli_removed flag on the single listing.
+		update_post_meta( $listing_id, 'gsli_removed', 1 );
+	}
 
 	// Redirect back to the removal requests list.
 	$redirect = add_query_arg(
@@ -385,8 +432,11 @@ function cya_render_removal_request_metabox( $post ) {
 				<td>
 					<?php
 					$listing_removed = $listing_id > 0 ? (string) get_post_meta( $listing_id, 'gsli_removed', true ) === '1' : false;
+					$agency_id       = $listing_id > 0 ? (int) get_post_meta( $listing_id, 'agency_post_id', true ) : 0;
+					$agency_removed  = $agency_id > 0 ? (string) get_post_meta( $agency_id, 'gsli_agency_removed', true ) === '1' : false;
+					$already_processed = $listing_removed || $agency_removed;
 
-					if ( $listing_id > 0 && ! $listing_removed ) {
+					if ( $listing_id > 0 && ! $already_processed ) {
 						$remove_url = wp_nonce_url(
 							add_query_arg(
 								array(
@@ -398,9 +448,15 @@ function cya_render_removal_request_metabox( $post ) {
 							),
 							'cya_handle_removal_request_' . $request_id
 						);
-						echo '<a class="button button-small" href="' . esc_url( $remove_url ) . '">' . esc_html__( 'Remove this listing', 'claim-your-agency' ) . '</a> ';
+						$removal_scope = get_post_meta( $request_id, 'removal_scope', true );
+						$label         = ( 'agency' === $removal_scope )
+							? esc_html__( 'Remove agency', 'claim-your-agency' )
+							: esc_html__( 'Remove this listing', 'claim-your-agency' );
+						echo '<a class="button button-small" href="' . esc_url( $remove_url ) . '">' . $label . '</a> ';
 					} elseif ( $listing_removed ) {
 						echo '<span class="button button-small disabled" style="opacity:0.6; pointer-events:none; margin-right:6px;">' . esc_html__( 'Listing removed', 'claim-your-agency' ) . '</span> ';
+					} elseif ( $agency_removed ) {
+						echo '<span class="button button-small disabled" style="opacity:0.6; pointer-events:none; margin-right:6px;">' . esc_html__( 'Agency removed', 'claim-your-agency' ) . '</span> ';
 					}
 
 					$delete_url = wp_nonce_url(
@@ -3221,7 +3277,7 @@ function cya_submit_removal_request() {
 	wp_send_json_success(
 		array(
 			'flow'    => 'removal',
-			'message' => __( "Thanks, we've received your request. We’ll review it shortly and confirm by email once the listing has been removed. Removal requests are usually processed within 1–3 business days.", 'claim-your-agency' ),
+			'message' => __( "Thanks, we've received your request. We’ll review it shortly and confirm by email once your request has been entertained. Removal requests are usually processed within 1–3 business days.", 'claim-your-agency' ),
 		)
 	);
 }

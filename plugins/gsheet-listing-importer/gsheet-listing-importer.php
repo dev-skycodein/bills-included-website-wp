@@ -1464,7 +1464,13 @@ function gsli_get_or_create_agency($data) {
 	));
 
 	if (!empty($existing)) {
-		return (int) $existing[0];
+		$existing_id = (int) $existing[0];
+		// If this agency has been explicitly removed, do not reuse it for imports.
+		$removed_flag = get_post_meta($existing_id, 'gsli_agency_removed', true);
+		if ((string) $removed_flag === '1') {
+			return 0;
+		}
+		return $existing_id;
 	}
 
 	// Fallback for older records that might not have agency_id meta yet: look up by slug.
@@ -1472,6 +1478,10 @@ function gsli_get_or_create_agency($data) {
 	if ($existing_by_slug instanceof WP_Post) {
 		$existing_id = (int) $existing_by_slug->ID;
 		update_post_meta($existing_id, 'agency_id', $agency_key);
+		$removed_flag = get_post_meta($existing_id, 'gsli_agency_removed', true);
+		if ((string) $removed_flag === '1') {
+			return 0;
+		}
 		return $existing_id;
 	}
 
@@ -1551,6 +1561,10 @@ function gsli_apply_listinghub_mapping($post_id, $data, $post_type, $is_update =
 	$agency_post_id = gsli_get_or_create_agency($data);
 	if ($agency_post_id) {
 		update_post_meta($post_id, 'agency_post_id', $agency_post_id);
+	} else {
+		// When the related agency is flagged as removed, skip importing this listing.
+		gsli_log('Skipped row because agency is removed or missing.', array('post_id' => $post_id, 'title' => $title));
+		update_post_meta($post_id, 'gsli_removed', 1);
 	}
 
 	if (!empty($data['price'])) {

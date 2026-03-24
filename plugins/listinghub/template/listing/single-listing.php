@@ -490,10 +490,16 @@ if ( (string) get_post_meta( $listingid, 'gsli_removed', true ) === '1' ) {
 															'post_status'    => 'publish',
 															'posts_per_page' => 99999,
 															'meta_query'     => array(
+																// Must belong to this agency.
 																array(
 																	'key'     => 'agency_post_id',
 																	'value'   => $agency_post_id,
 																	'compare' => '=',
+																),
+																// Exclude listings that have been explicitly removed.
+																array(
+																	'key'     => 'gsli_removed',
+																	'compare' => 'NOT EXISTS',
 																),
 															),
 														)
