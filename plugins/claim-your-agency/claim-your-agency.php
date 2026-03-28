@@ -2497,16 +2497,14 @@ function cya_output_claim_popup_js() {
 					<small style="display:block;margin-top:2px;color:#666;"><?php esc_html_e( 'Please select one.', 'claim-your-agency' ); ?></small>
 				</div>
 
-				<div class="cya-claim-row">
-					<div class="cya-claim-field">
-						<label for="cya-claimant-name"><?php esc_html_e( 'Your name', 'claim-your-agency' ); ?><span class="cya-required-star">*</span></label>
-						<input type="text" id="cya-claimant-name" name="claimant_name" class="cya-claim-input" required />
-					</div>
-					<div class="cya-claim-field">
-						<label for="cya-claimant-email"><?php esc_html_e( 'Work email address', 'claim-your-agency' ); ?><span class="cya-required-star">*</span></label>
-						<input type="email" id="cya-claimant-email" name="claimant_email" class="cya-claim-input" required />
-						<small style="display:block;margin-top:2px;color:#666;"><?php esc_html_e( 'Please use an email address associated with the agency or property owner.', 'claim-your-agency' ); ?></small>
-					</div>
+				<div class="cya-claim-field">
+					<label for="cya-claimant-name"><?php esc_html_e( 'Your name', 'claim-your-agency' ); ?><span class="cya-required-star">*</span></label>
+					<input type="text" id="cya-claimant-name" name="claimant_name" class="cya-claim-input" required />
+				</div>
+				<div class="cya-claim-field">
+					<label for="cya-claimant-email"><?php esc_html_e( 'Work email address', 'claim-your-agency' ); ?><span class="cya-required-star">*</span></label>
+					<input type="email" id="cya-claimant-email" name="claimant_email" class="cya-claim-input" required />
+					<small style="display:block;margin-top:2px;color:#666;"><?php esc_html_e( 'Please use an email address associated with the agency or property owner.', 'claim-your-agency' ); ?></small>
 				</div>
 
 				<div class="cya-claim-field" style="display:none;">
@@ -3577,4 +3575,5 @@ function cya_agency_wp_login() {
 }
 add_action( 'wp_ajax_cya_agency_wp_login', 'cya_agency_wp_login' );
 add_action( 'wp_ajax_nopriv_cya_agency_wp_login', 'cya_agency_wp_login' );
+
 

@@ -27,6 +27,13 @@ const GSLI_OPTION_SERVICE_ACCOUNT_JSON = 'gsli_service_account_json';
 const GSLI_OPTION_CRON_TOKEN = 'gsli_cron_token';
 /** Default filename for service account JSON when option is empty (relative to plugin dir). */
 const GSLI_DEFAULT_SERVICE_ACCOUNT_JSON = 'bills-included-scraping-0fcadb7076ac.json';
+/** Delete log files in logs/ older than this many days (daily WP-Cron). */
+const GSLI_LOG_RETENTION_DAYS = 8;
+
+register_activation_hook(__FILE__, 'gsli_schedule_log_cleanup_cron');
+register_deactivation_hook(__FILE__, 'gsli_unschedule_log_cleanup_cron');
+add_action('init', 'gsli_schedule_log_cleanup_cron', 30);
+add_action('gsli_cleanup_log_files', 'gsli_cleanup_old_log_files');
 
 add_action('admin_menu', 'gsli_register_admin_menu');
 add_action('admin_init', 'gsli_register_settings');
@@ -45,6 +52,51 @@ add_filter('template_include', 'gsli_single_agency_template', 20);
 
 function gsli_get_log_dir() {
 	return plugin_dir_path(__FILE__) . 'logs' . DIRECTORY_SEPARATOR;
+}
+
+/**
+ * Schedule daily cleanup of old import log files (WP-Cron).
+ */
+function gsli_schedule_log_cleanup_cron() {
+	if (wp_next_scheduled('gsli_cleanup_log_files')) {
+		return;
+	}
+	wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'gsli_cleanup_log_files');
+}
+
+/**
+ * Remove the log cleanup event on plugin deactivation.
+ */
+function gsli_unschedule_log_cleanup_cron() {
+	$ts = wp_next_scheduled('gsli_cleanup_log_files');
+	if ($ts) {
+		wp_unschedule_event($ts, 'gsli_cleanup_log_files');
+	}
+}
+
+/**
+ * Delete *.log files in the plugin logs directory older than GSLI_LOG_RETENTION_DAYS.
+ */
+function gsli_cleanup_old_log_files() {
+	$dir = gsli_get_log_dir();
+	if (!is_dir($dir) || !is_readable($dir)) {
+		return;
+	}
+	$cutoff = time() - (DAY_IN_SECONDS * (int) GSLI_LOG_RETENTION_DAYS);
+	$pattern = trailingslashit($dir) . '*.log';
+	$files   = glob($pattern);
+	if (empty($files)) {
+		return;
+	}
+	foreach ($files as $path) {
+		if (!is_file($path)) {
+			continue;
+		}
+		$mtime = @filemtime($path);
+		if ($mtime !== false && $mtime < $cutoff) {
+			@unlink($path);
+		}
+	}
 }
 
 /**

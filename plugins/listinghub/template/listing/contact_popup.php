@@ -12,7 +12,7 @@
 	$dir_id=0; if(isset($_REQUEST['dir_id'])){$dir_id=sanitize_text_field($_REQUEST['dir_id']);}
 	$id=$dir_id;
 	$dir_addedit_contactustitle='';
-	if($dir_addedit_contactustitle==""){$dir_addedit_contactustitle= esc_html__( 'Contact Us', 'listinghub' );}	
+	if($dir_addedit_contactustitle==""){$dir_addedit_contactustitle= esc_html__( 'Contact Agent', 'listinghub' );}	
 ?>
 <div class="bootstrap-wrapper listinghub-listing-contact-popup" id="listinghub-listing-contact-popup">		
 	<div class="container" >
