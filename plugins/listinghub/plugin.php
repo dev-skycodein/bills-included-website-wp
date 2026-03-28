@@ -76,6 +76,7 @@
 				//	
 				
 				add_action('template_redirect', array($this, 'listinghub_track_listing_view'), 5);
+				add_action('template_redirect', array($this, 'listinghub_track_anonymous_visitor_retention'), 6);
 				// Run before WooCommerce: prevent WC from stripping key/login and redirecting to lost-password when using our reset link
 				add_action('template_redirect', array( $this, 'listinghub_prevent_woocommerce_reset_redirect' ), 1 );
 				add_action('template_redirect', function () {
@@ -158,6 +159,11 @@
 				add_action('wp_ajax_listinghub_contact_popup', array($this, 'listinghub_contact_popup'));
 				add_action('wp_ajax_nopriv_listinghub_contact_popup', array($this, 'listinghub_contact_popup'));
 				add_action('wp_ajax_listinghub_listing_contact_popup', array($this, 'listinghub_listing_contact_popup'));
+
+				// Front-end assets.
+				add_action( 'wp_enqueue_scripts', array( $this, 'listinghub_color_js' ) );
+				// Global custom CSS for user overrides – loads late so it can override other styles.
+				add_action( 'wp_enqueue_scripts', array( $this, 'listinghub_custom_global_css' ), 20 );
 				add_action('wp_ajax_nopriv_listinghub_listing_contact_popup', array($this, 'listinghub_listing_contact_popup'));				
 				add_action('wp_ajax_listinghub_listing_claim_popup', array($this, 'listinghub_listing_claim_popup'));
 				add_action('wp_ajax_nopriv_listinghub_listing_claim_popup', array($this, 'listinghub_listing_claim_popup'));
@@ -233,6 +239,7 @@
 				add_action( 'init', array($this, 'listinghub_maybe_create_agency_login_log_table'), 0 );
 				add_action( 'init', array($this, 'listinghub_maybe_create_agency_activity_log_table'), 0 );
 				add_action( 'init', array($this, 'listinghub_maybe_create_renter_login_log_table'), 0 );
+				add_action( 'init', array($this, 'listinghub_maybe_create_visitor_retention_log_table'), 0 );
 				add_action( 'wp_loaded', array($this, 'listinghub_woocommerce_form_submit') );
 				add_action( 'init', array($this, 'ep_listinghub_cpt_columns') );
 				// Add color script
@@ -266,6 +273,8 @@
 			const AGENCY_ACTIVITY_LOG_TABLE_SCHEMA_VERSION = 1;
 			/** Current schema version for the renter login log table. Bump when table structure changes. */
 			const RENTER_LOGIN_LOG_TABLE_SCHEMA_VERSION = 1;
+			/** Current schema version for the anonymous visitor retention log table. Bump when table structure changes. */
+			const VISITOR_RETENTION_LOG_TABLE_SCHEMA_VERSION = 1;
 
 			private function define_constants() {
 				if (!defined('ep_listinghub_BASENAME')) define('ep_listinghub_BASENAME', plugin_basename(__FILE__));
@@ -276,6 +285,7 @@
 				if (!defined('ep_listinghub_AGENCY_LOGIN_LOG_TABLE')) define('ep_listinghub_AGENCY_LOGIN_LOG_TABLE', 'listinghub_agency_login_log');
 				if (!defined('ep_listinghub_AGENCY_ACTIVITY_LOG_TABLE')) define('ep_listinghub_AGENCY_ACTIVITY_LOG_TABLE', 'listinghub_agency_activity_log');
 				if (!defined('ep_listinghub_RENTER_LOGIN_LOG_TABLE')) define('ep_listinghub_RENTER_LOGIN_LOG_TABLE', 'listinghub_renter_login_log');
+				if (!defined('ep_listinghub_VISITOR_RETENTION_LOG_TABLE')) define('ep_listinghub_VISITOR_RETENTION_LOG_TABLE', 'listinghub_visitor_retention_log');
 				if (!defined('ep_listinghub_FOLDER'))define('ep_listinghub_FOLDER', plugin_basename(dirname(__FILE__)));
 				if (!defined('ep_listinghub_ABSPATH'))define('ep_listinghub_ABSPATH', trailingslashit(str_replace("\\", "/", WP_PLUGIN_DIR . '/' . plugin_basename(dirname(__FILE__)))));
 				if (!defined('ep_listinghub_URLPATH'))define('ep_listinghub_URLPATH', trailingslashit(plugins_url() . '/' . plugin_basename(dirname(__FILE__))));
@@ -415,6 +425,112 @@
 					),
 					array( '%s', '%d', '%d' )
 				);
+			}
+
+			/**
+			 * Log anonymous marketplace visitors once per calendar day (site timezone) for retention analytics.
+			 * Uses first-party cookies (visitor id + last-logged day). Logged-in users are excluded.
+			 *
+			 * Filter `listinghub_visitor_retention_should_track` (bool): return false to skip (e.g. until cookie consent).
+			 */
+			public function listinghub_track_anonymous_visitor_retention() {
+				static $did = false;
+				if ( $did ) {
+					return;
+				}
+				$did = true;
+
+				if ( is_admin() || wp_doing_ajax() || wp_doing_cron() || is_feed() || is_trackback() ) {
+					return;
+				}
+				if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+					return;
+				}
+				if ( function_exists( 'wp_is_json_request' ) && wp_is_json_request() ) {
+					return;
+				}
+				if ( is_user_logged_in() ) {
+					return;
+				}
+				/**
+				 * Allow sites to disable tracking until analytics cookies are accepted.
+				 *
+				 * @param bool $track Whether to record this request.
+				 */
+				if ( ! apply_filters( 'listinghub_visitor_retention_should_track', true ) ) {
+					return;
+				}
+
+				$cookie_vid  = 'listinghub_vid';
+				$cookie_day  = 'listinghub_vid_day';
+				$visitor_id  = '';
+				if ( ! empty( $_COOKIE[ $cookie_vid ] ) ) {
+					$raw = sanitize_text_field( wp_unslash( $_COOKIE[ $cookie_vid ] ) );
+					if ( preg_match( '/^[a-f0-9]{32}$/', $raw ) ) {
+						$visitor_id = $raw;
+					}
+				}
+				if ( $visitor_id === '' ) {
+					try {
+						$visitor_id = bin2hex( random_bytes( 16 ) );
+					} catch ( Exception $e ) {
+						$visitor_id = substr( bin2hex( hash( 'sha256', uniqid( (string) wp_rand(), true ), true ) ), 0, 32 );
+					}
+					$this->listinghub_set_visitor_retention_cookie( $cookie_vid, $visitor_id, time() + YEAR_IN_SECONDS * 2 );
+				}
+
+				$today = current_time( 'Y-m-d' );
+				if ( ! empty( $_COOKIE[ $cookie_day ] ) && sanitize_text_field( wp_unslash( $_COOKIE[ $cookie_day ] ) ) === $today ) {
+					return;
+				}
+
+				global $wpdb;
+				$table_name = defined( 'ep_listinghub_VISITOR_RETENTION_LOG_TABLE' ) ? ep_listinghub_VISITOR_RETENTION_LOG_TABLE : 'listinghub_visitor_retention_log';
+				$table      = $wpdb->prefix . $table_name;
+				if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+					if ( method_exists( $this, 'listinghub_maybe_create_visitor_retention_log_table' ) ) {
+						$this->listinghub_maybe_create_visitor_retention_log_table();
+					}
+					if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+						return;
+					}
+				}
+
+				$wpdb->insert(
+					$table,
+					array(
+						'created'    => current_time( 'mysql' ),
+						'visitor_id' => $visitor_id,
+						'user_id'    => 0,
+					),
+					array( '%s', '%s', '%d' )
+				);
+
+				$this->listinghub_set_visitor_retention_cookie( $cookie_day, $today, time() + DAY_IN_SECONDS * 2 );
+			}
+
+			/**
+			 * @param string $name  Cookie name.
+			 * @param string $value Cookie value.
+			 * @param int    $expires Unix expiry.
+			 */
+			private function listinghub_set_visitor_retention_cookie( $name, $value, $expires ) {
+				if ( PHP_VERSION_ID >= 70300 ) {
+					setcookie(
+						$name,
+						$value,
+						array(
+							'expires'  => $expires,
+							'path'     => '/',
+							'samesite' => 'Lax',
+							'secure'   => is_ssl(),
+							'httponly' => true,
+						)
+					);
+				} else {
+					setcookie( $name, $value, $expires, '/; samesite=Lax' );
+				}
+				$_COOKIE[ $name ] = $value;
 			}
 
 			public function listinghub_create_taxonomy_category() {
@@ -2860,6 +2976,31 @@
 				'max_border_color'=>$border_color,	
 				) );	
 			}
+
+			/**
+			 * Global front-end CSS for custom overrides.
+			 *
+			 * Put your site-wide ListingHub tweaks into:
+			 * admin/files/css/listinghub-global.css
+			 */
+			public function listinghub_custom_global_css() {
+				if ( ! defined( 'ep_listinghub_ABSPATH' ) || ! defined( 'ep_listinghub_URLPATH' ) ) {
+					return;
+				}
+
+				$css_path = ep_listinghub_ABSPATH . 'admin/files/css/listinghub-global.css';
+				if ( ! file_exists( $css_path ) ) {
+					return;
+				}
+
+				$ver = (string) filemtime( $css_path );
+				wp_enqueue_style(
+					'listinghub-global-custom',
+					ep_listinghub_URLPATH . 'admin/files/css/listinghub-global.css',
+					array(),
+					$ver
+				);
+			}
 			public function listinghub_all_functions(){
 				include_once('functions/listing-functions.php');
 				include_once('functions/open-status-checker.php');				
@@ -3227,6 +3368,40 @@
 				$exists_after = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
 				if ( $exists_after === $table ) {
 					update_option( 'listinghub_agency_activity_log_schema_version', self::AGENCY_ACTIVITY_LOG_TABLE_SCHEMA_VERSION );
+				}
+			}
+
+			/**
+			 * Ensure anonymous visitor retention log table exists. One row per visitor per calendar day (site time).
+			 */
+			public function listinghub_maybe_create_visitor_retention_log_table() {
+				global $wpdb;
+				$table_name = defined( 'ep_listinghub_VISITOR_RETENTION_LOG_TABLE' ) ? ep_listinghub_VISITOR_RETENTION_LOG_TABLE : 'listinghub_visitor_retention_log';
+				$table      = $wpdb->prefix . $table_name;
+				$exists     = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+				if ( $exists === $table ) {
+					update_option( 'listinghub_visitor_retention_log_schema_version', self::VISITOR_RETENTION_LOG_TABLE_SCHEMA_VERSION );
+					return;
+				}
+
+				$charset = $wpdb->get_charset_collate();
+				$sql     = "CREATE TABLE {$table} (
+					id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+					created datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+					visitor_id varchar(64) NOT NULL DEFAULT '',
+					user_id bigint(20) unsigned NOT NULL DEFAULT '0',
+					PRIMARY KEY  (id),
+					KEY created (created),
+					KEY visitor_id (visitor_id),
+					KEY user_created (visitor_id, created)
+				) {$charset};";
+
+				require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+				dbDelta( $sql );
+
+				$exists_after = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+				if ( $exists_after === $table ) {
+					update_option( 'listinghub_visitor_retention_log_schema_version', self::VISITOR_RETENTION_LOG_TABLE_SCHEMA_VERSION );
 				}
 			}
 
@@ -4201,9 +4376,9 @@
 				{
 					$this->_search_longitude = $args['lng'];
 				}
-				if(!empty($args['distance']))
+				if(!empty($args['distance']) && $args['distance'] !== '')
 				{
-					$this->_search_distance = (int)$args['distance'];
+					$this->_search_distance = (float)$args['distance'];
 				}
 				if(!empty($args[$listinghub_directory_url.'-category']))
 				{
@@ -4238,19 +4413,19 @@
 				global $wpdb;
 				if($this->_search_longitude!=""){
 					if($this->_search_postcats!=""){
-						$where .= $wpdb->prepare(" HAVING distance < %d ", $this->_search_distance);
+						$where .= $wpdb->prepare(" HAVING distance < %f ", $this->_search_distance);
 						}else{
-						$where = $wpdb->prepare("{$wpdb->posts}.ID  HAVING distance < %d ", $this->_search_distance);
+						$where = $wpdb->prepare("{$wpdb->posts}.ID  HAVING distance < %f ", $this->_search_distance);
 					}
 					if($this->_search_posttags!=""){
-						$where .= $wpdb->prepare(" HAVING distance < %d ", $this->_search_distance);
+						$where .= $wpdb->prepare(" HAVING distance < %f ", $this->_search_distance);
 						}else{
-						$where = $wpdb->prepare("{$wpdb->posts}.ID  HAVING distance < %d ", $this->_search_distance);
+						$where = $wpdb->prepare("{$wpdb->posts}.ID  HAVING distance < %f ", $this->_search_distance);
 					}
 					if($this->_search_postlocations!=""){
-						$where .= $wpdb->prepare(" HAVING distance < %d ", $this->_search_distance);
+						$where .= $wpdb->prepare(" HAVING distance < %f ", $this->_search_distance);
 						}else{
-						$where = $wpdb->prepare("{$wpdb->posts}.ID  HAVING distance < %d ", $this->_search_distance);
+						$where = $wpdb->prepare("{$wpdb->posts}.ID  HAVING distance < %f ", $this->_search_distance);
 					}
 				}
 				if($this->_search_postcats!=""){
