@@ -1,6 +1,10 @@
 
 
 <?php
+	// Version assets by file mtime so cache updates when files change (avoids stale CSS/JS).
+	$listinghub_archive_css = defined( 'ep_listinghub_ABSPATH' ) ? ep_listinghub_ABSPATH . 'admin/files/css/archive-listing.css' : '';
+	$listinghub_archive_ver = ( $listinghub_archive_css !== '' && file_exists( $listinghub_archive_css ) ) ? (string) filemtime( $listinghub_archive_css ) : '';
+
 	wp_enqueue_script("jquery");	
 	wp_enqueue_script('jquery-ui-core');
 	wp_enqueue_script('jquery-ui-datepicker');
@@ -8,9 +12,8 @@
 	wp_enqueue_script('popper', ep_listinghub_URLPATH . 'admin/files/js/popper.min.js');
 	wp_enqueue_script('bootstrap', ep_listinghub_URLPATH . 'admin/files/js/bootstrap.min-4.js'); 
 	wp_enqueue_style('bootstrap', ep_listinghub_URLPATH . 'admin/files/css/iv-bootstrap.css');
-	wp_enqueue_style('listinghub_listing_style_alphabet_sort', ep_listinghub_URLPATH . 'admin/files/css/archive-listing.css');	
-	wp_enqueue_style('colorbox', ep_listinghub_URLPATH . 'admin/files/css/colorbox.css');
-	wp_enqueue_script('colorbox', ep_listinghub_URLPATH . 'admin/files/js/jquery.colorbox-min.js');
+	wp_enqueue_style('listinghub_listing_style_alphabet_sort', ep_listinghub_URLPATH . 'admin/files/css/archive-listing.css', array(), $listinghub_archive_ver );	
+	listinghub_enqueue_colorbox();
 	wp_enqueue_style('jquery-ui', ep_listinghub_URLPATH . 'admin/files/css/jquery-ui.css');
 	wp_enqueue_style('font-awesome', ep_listinghub_URLPATH . 'admin/files/css/all.min.css');	
 	wp_enqueue_style('flaticon', ep_listinghub_URLPATH . 'admin/files/fonts/flaticon/flaticon.css');	 
@@ -94,14 +97,6 @@
 			'compare' => '=',
 		);
 	}
-	// Exclude listings that have been explicitly removed (gsli_removed = 1).
-	if ( ! isset( $args['meta_query'] ) ) {
-		$args['meta_query'] = array();
-	}
-	$args['meta_query'][] = array(
-		'key'     => 'gsli_removed',
-		'compare' => 'NOT EXISTS',
-	);
 	// For featrue listing***********
 	$feature_listing_all =array();
 	$feature_listing_all =$args;
@@ -133,29 +128,9 @@
 	<!-- archieve page own design font and others -->
 	<section class=" py-3">
 		<div class="<?php echo esc_attr( $wrapper_class ); ?> "  >
-			<!-- Search Form -->
-			<div class="display-none"  tabindex="-1" >	.
-				<div class="" id="listingfilter">
-					<?php
-						if(isset($active_archive_fields['top_search_form'])){
-							if($search_form_setting=='popup'){
-							echo do_shortcode('[listinghub_search_popup action="same_page"]');
-							}
-						}
-					?>
-				</div>
-			</div>
-			<!-- end of search form -->
 			<div class="row" id="full_grid"> 
-
-					<div class="col-md-12 col-lg-12 col-xl-12 col-sm-12 " >	
-						<?php
-						if(isset($active_archive_fields['top_search_form'])){										
-							if($search_form_setting=='on-page'){
-							 echo do_shortcode('[listinghub_search action="same_page"]');					
-							}
-						}	
-						?>
+					<div class="col-md-12 col-lg-12 col-xl-12 col-sm-12 " id="listinghub_search_bar" >	
+						<?php echo do_shortcode( '[listinghub_search_bar]' ); ?>
 					</div>	
 				<div class="col-md-12 col-lg-12 col-xl-12 col-sm-12  " id="dirpro_directories" >	
 					<div class="row">	
@@ -166,39 +141,38 @@
 						</div>
 						<div class="col-xl-9 col-lg-9 col-md-9  col-sm-6 col-6 ">
 							<div class="text-right clearfix   ">
-								
-								<div class="listing-top-layout">
-									<?php
-										if(isset($active_archive_fields['top_search_form'])){
-											if($search_form_setting=='popup'){
-										?>
-										<span>							
-											<button type="button" class="btn btn-big "  onclick="listinghub_call_filter()">
-												<i class="fa-solid fa-magnifying-glass mr-1"></i><?php esc_html_e('Filters', 'listinghub' ); ?>	
-												<?php
-													if( $listinghub_filter_badge>0 ){
-													?>
-													<span class="badge badge-pill badge-secondary"><?php echo esc_html($listinghub_filter_badge); ?></span>
-													<?php
-													}
-												?>
-											</button>	
-										</span>
-										<?php
-											}
-										}
-									?>
-									<ul class="mr-3">										
-										<?php
-											if( $listinghub_filter_badge>0 ){
-											?>	
-											<li class="topicon-border">									
-												<a id="resetmainpage"  href="#" data-placement="top" data-toggle="tooltip"  title="<?php  esc_html_e('Reset Search','listinghub'); ?>"><i class="fa fa-refresh" aria-hidden="true"></i>
+								<?php
+								$listinghub_sort_options = array(
+									'high-to-low' => __( 'Highest price', 'listinghub' ),
+									'low-to-high' => __( 'Lowest price', 'listinghub' ),
+									'date-desc'   => __( 'Recent', 'listinghub' ),
+									'date-asc'    => __( 'Oldest', 'listinghub' ),
+								);
+								$listinghub_current_sort = isset( $_REQUEST['sfsort_listing'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['sfsort_listing'] ) ) : 'date-desc';
+								if ( ! array_key_exists( $listinghub_current_sort, $listinghub_sort_options ) ) {
+									$listinghub_current_sort = 'date-desc';
+								}
+								$listinghub_archive_link = get_post_type_archive_link( $listinghub_directory_url );
+								?>
+								<div class="listinghub-archive-sort" id="listinghub_archive_sort">
+									<button type="button" class="listinghub-archive-sort-trigger" id="listinghub_archive_sort_trigger" aria-expanded="false" aria-controls="listinghub_archive_sort_dropdown" aria-haspopup="listbox">
+										<span class="listinghub-archive-sort-label"><?php esc_html_e( 'Sort:', 'listinghub' ); ?></span>
+										<span class="listinghub-archive-sort-value listinghub-archive-sort-value-underline"><?php echo esc_html( $listinghub_sort_options[ $listinghub_current_sort ] ); ?></span>
+										<span class="listinghub-archive-sort-arrow" aria-hidden="true"></span>
+									</button>
+									<ul class="listinghub-archive-sort-dropdown" id="listinghub_archive_sort_dropdown" role="listbox" hidden>
+										<?php foreach ( $listinghub_sort_options as $value => $label ) : ?>
+											<?php
+											$sort_url = add_query_arg( array_merge( $_GET, array( 'sfsort_listing' => $value ) ), $listinghub_archive_link );
+											$is_selected = ( $value === $listinghub_current_sort );
+											?>
+											<li role="option" <?php echo $is_selected ? ' aria-selected="true"' : ''; ?>>
+												<a href="<?php echo esc_url( $sort_url ); ?>" class="listinghub-archive-sort-option <?php echo $is_selected ? ' is-selected' : ''; ?>" data-value="<?php echo esc_attr( $value ); ?>" data-label="<?php echo esc_attr( $label ); ?>">
+													<?php if ( $is_selected ) : ?><span class="listinghub-archive-sort-check" aria-hidden="true">✓</span><?php endif; ?>
+													<?php echo esc_html( $label ); ?>
 												</a>
 											</li>
-											<?php
-											}
-										?>
+										<?php endforeach; ?>
 									</ul>
 								</div>
 							</div>
@@ -295,7 +269,9 @@
 	'contact'=> wp_create_nonce("contact"),
 	'listing'=> wp_create_nonce("listing"),
 	) );
-	wp_enqueue_script('listinghub_single-listing', ep_listinghub_URLPATH . 'admin/files/js/single-listing.js');
+	$listinghub_sl_js = defined( 'ep_listinghub_ABSPATH' ) ? ep_listinghub_ABSPATH . 'admin/files/js/single-listing.js' : '';
+	$listinghub_sl_ver = ( $listinghub_sl_js !== '' && file_exists( $listinghub_sl_js ) ) ? (string) filemtime( $listinghub_sl_js ) : null;
+	wp_enqueue_script( 'listinghub_single-listing', ep_listinghub_URLPATH . 'admin/files/js/single-listing.js', array( 'jquery' ), $listinghub_sl_ver, true );
 	wp_localize_script('listinghub_single-listing', 'listinghub_data', array(
 	'ajaxurl' 			=> admin_url( 'admin-ajax.php' ),
 	'loading_image'		=> '<img src="'.ep_listinghub_URLPATH.'admin/files/images/loader.gif">',
@@ -303,7 +279,7 @@
 	'Please_login'=>esc_html__('Please login', 'listinghub' ),
 	'Add_to_Favorites'=>esc_html__('Save', 'listinghub' ),
 	'Added_to_Favorites'=>esc_html__('Saved', 'listinghub' ),		
-	'Please_put_your_message'=>esc_html__('Please put your name,email Cover letter & attached file', 'listinghub' ),
+	'Please_put_your_message'=>esc_html__('Please complete Name, Email, and all required fields (move date, budget, bedrooms).', 'listinghub' ),
 	'contact'=> wp_create_nonce("contact"),
 	'dirwpnonce'=> wp_create_nonce("myaccount"),
 	'listing'=> wp_create_nonce("listing"),
@@ -313,5 +289,65 @@
 	
 	
 ?>
+<script>
+(function() {
+	var wrap = document.getElementById('listinghub_archive_sort');
+	if (!wrap) return;
+	var trigger = document.getElementById('listinghub_archive_sort_trigger');
+	var dropdown = document.getElementById('listinghub_archive_sort_dropdown');
+	if (!trigger || !dropdown) return;
+	trigger.addEventListener('click', function(e) {
+		e.preventDefault();
+		e.stopPropagation();
+		// When Sort is opened, hide any open search/filter dropdowns in the search bar (but not the Filters panel itself).
+		try {
+			// Hide Beds panel
+			var bedsPanel = document.getElementById('listinghub_sb_beds_panel');
+			var bedsWrap = document.querySelector('.listinghub-sb-beds-wrap');
+			if (bedsPanel) bedsPanel.setAttribute('hidden', '');
+			if (bedsWrap) bedsWrap.classList.remove('is-open');
+			// Hide Renter type panel
+			var renterPanel = document.getElementById('listinghub_sb_renter_panel');
+			var renterWrap = document.querySelector('.listinghub-sb-renter-wrap');
+			if (renterPanel) renterPanel.setAttribute('hidden', '');
+			if (renterWrap) renterWrap.classList.remove('is-open');
+			// Hide simple panels (radius, min/max price)
+			document.querySelectorAll('.listinghub-sb-simple-panel').forEach(function(p){ p.setAttribute('hidden',''); });
+			document.querySelectorAll('.listinghub-sb-simple-wrap').forEach(function(w){ w.classList.remove('is-open'); });
+			// Hide Property type popup
+			var propPopup = document.getElementById('listinghub_sb_property_popup');
+			var propWrap = document.querySelector('.listinghub-sb-property-section');
+			if (propPopup) propPopup.setAttribute('hidden','');
+			if (propWrap) propWrap.classList.remove('is-open');
+			// Hide Bathrooms panel
+			var bathsPanel = document.getElementById('listinghub_sb_baths_panel');
+			var bathsWrap = document.querySelector('.listinghub-sb-baths-wrap');
+			if (bathsPanel) bathsPanel.setAttribute('hidden','');
+			if (bathsWrap) bathsWrap.classList.remove('is-open');
+			// Hide Locations popup
+			var locPopup = document.getElementById('listinghub_sb_locations_popup');
+			var locWrap = document.querySelector('.listinghub-sb-locations-section');
+			if (locPopup) locPopup.setAttribute('hidden','');
+			if (locWrap) locWrap.classList.remove('is-open');
+		} catch (err) {
+			// Fail silently – sort still works even if any element is missing.
+		}
+		var open = dropdown.getAttribute('hidden') === null;
+		if (open) {
+			dropdown.setAttribute('hidden', '');
+		} else {
+			dropdown.removeAttribute('hidden');
+		}
+		trigger.setAttribute('aria-expanded', !open);
+		wrap.classList.toggle('is-open', !open);
+	});
+	document.addEventListener('click', function() {
+		dropdown.setAttribute('hidden', '');
+		trigger.setAttribute('aria-expanded', 'false');
+		wrap.classList.remove('is-open');
+	});
+	wrap.addEventListener('click', function(e) { e.stopPropagation(); });
+})();
+</script>
 <?php
 	wp_reset_query();

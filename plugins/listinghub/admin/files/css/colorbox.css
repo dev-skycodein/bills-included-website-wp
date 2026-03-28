@@ -68,3 +68,55 @@
 .cboxIE #cboxMiddleRight {
     filter: progid:DXImageTransform.Microsoft.gradient(startColorstr=#00FFFFFF,endColorstr=#00FFFFFF);
 }
+
+/*
+ * Strip Colorbox decorative border frame (top/bottom rows + left/right gutters).
+ * The plugin always injects these nodes; CSS collapses them so only #cboxContent shows.
+ * Do not zero height on #cboxMiddleLeft / #cboxMiddleRight — Colorbox sets it for layout.
+ */
+#cboxTopLeft,
+#cboxTopRight,
+#cboxBottomLeft,
+#cboxBottomRight {
+	width: 0 !important;
+	height: 0 !important;
+	min-width: 0 !important;
+	min-height: 0 !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	border: 0 !important;
+	background: none !important;
+	overflow: hidden !important;
+}
+
+#cboxTopCenter,
+#cboxBottomCenter {
+	height: 0 !important;
+	min-height: 0 !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	border: 0 !important;
+	background: none !important;
+	overflow: hidden !important;
+}
+
+#cboxMiddleLeft,
+#cboxMiddleRight {
+	width: 0 !important;
+	min-width: 0 !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	border: 0 !important;
+	background: none !important;
+	overflow: hidden !important;
+}
+
+/* Middle row: content uses full width without side gutters */
+#cboxContent {
+	width: 100% !important;
+	max-width: 100% !important;
+}
+
+#cboxLoadedContent {
+	margin-bottom: 0 !important;
+}

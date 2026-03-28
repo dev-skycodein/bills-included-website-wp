@@ -1,4 +1,8 @@
-/**
+
+
+ 
+    
+    /**
  * ListingHub Search Bar – purple bar design
  * Shortcode: [listinghub_search_bar]
  */
@@ -15,7 +19,8 @@
 	--listinghub-sb-shadow: 0 2px 12px rgba(91, 74, 158, 0.15);
 	font-size: 14px;
 	margin-bottom: 1rem;
-	box-shadow: 0px 18px 40px rgb(25 15 9 / 10%);
+	box-shadow: 0px 18px 40px rgb(25 15 9 / 20%);
+	transition: 0.3s;
 }
 
 /* Main bar */
@@ -161,15 +166,14 @@
 .listinghub-sb-beds-wrap.is-open .listinghub-sb-arrow,
 .listinghub-sb-renter-wrap.is-open .listinghub-sb-arrow,
 .listinghub-sb-simple-wrap.is-open .listinghub-sb-arrow,
-.listinghub-sb-property-wrap.is-open .listinghub-sb-arrow,
+.listinghub-sb-property-section.is-open .listinghub-sb-arrow,
 .listinghub-sb-baths-wrap.is-open .listinghub-sb-arrow {
 	transform: rotate(180deg);
 }
 
 .listinghub-sb-beds-panel,
 .listinghub-sb-renter-panel,
-.listinghub-sb-simple-panel,
-.listinghub-sb-property-panel {
+.listinghub-sb-simple-panel {
 	position: absolute;
 	top: 100%;
 	left: 0;
@@ -186,9 +190,82 @@
 
 .listinghub-sb-beds-panel[hidden],
 .listinghub-sb-renter-panel[hidden],
-.listinghub-sb-simple-panel[hidden],
-.listinghub-sb-property-panel[hidden] {
+.listinghub-sb-simple-panel[hidden] {
 	display: none !important;
+}
+
+/* Property type: same layout as Locations (search + Select all + list) */
+.listinghub-sb-property-section {
+	position: relative;
+}
+
+.listinghub-sb-property-section .listinghub-sb-property-trigger {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	width: 100%;
+	height: var(--listinghub-sb-height);
+	padding: 0 12px;
+	border-radius: 6px;
+	border: 1px solid var(--listinghub-sb-border) !important;
+	background: var(--listinghub-sb-bg) !important;
+	color: var(--listinghub-sb-text) !important;
+	font-size: 14px;
+	cursor: pointer;
+	text-align: left;
+}
+
+.listinghub-sb-property-popup {
+	position: absolute;
+	left: 0;
+	top: 100%;
+	margin-top: 6px;
+	width: 100%;
+	max-width: 320px;
+	max-height: 280px;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	background: var(--listinghub-sb-bg);
+	border: 1px solid #ddd;
+	border-radius: 6px;
+	box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+	z-index: 5;
+}
+
+.listinghub-sb-property-popup[hidden] {
+	display: none !important;
+}
+
+.listinghub-sb-property-search {
+	width: 100%;
+	padding: 10px 12px;
+	border: 0;
+	border-bottom: 1px solid #eee;
+	font-size: 14px;
+	outline: none;
+}
+
+.listinghub-sb-property-select-all {
+	margin-bottom: 0;
+	padding-bottom: 8px;
+	border-bottom: 1px solid #eee;
+}
+
+.listinghub-sb-property-list {
+	overflow-y: auto;
+	max-height: 200px;
+}
+
+.listinghub-sb-property-list .listinghub-sb-check-item {
+	display: flex;
+	align-items: baseline;
+	margin-bottom: 6px;
+}
+
+.listinghub-sb-property-list .listinghub-sb-check-item.hide-by-search {
+	display: none;
 }
 
 .listinghub-sb-beds-row {
@@ -429,7 +506,8 @@
 }
 
 .listinghub-sb-locations-list .listinghub-sb-check-item {
-	display: block;
+	display: flex;
+	align-items: baseline;
 	margin-bottom: 6px;
 }
 
@@ -452,18 +530,11 @@
 	color: #fff;
 	text-transform: capitalize;
 }
-
+.listinghub-sb-btn-mobile-filters{
+	display: none;
+}
 /* Responsive */
 @media (max-width: 900px) {
-	.listinghub-search-bar-form .listinghub-search-bar-inner {
-		flex-direction: column;
-		align-items: stretch;
-	}
-
-	.listinghub-sb-search-wrap {
-		max-width: none;
-	}
-
 	.listinghub-sb-dropdown-wrap .listinghub-sb-select,
 	.listinghub-sb-beds-trigger,
 	.listinghub-sb-renter-trigger {
@@ -496,11 +567,186 @@
 .listinghub-search-bar-inner>div, .listinghub-search-bar-inner > div > button {
     min-width: 140px !important;
 }
-.listinghub-sb-field.is-open {
+.listinghub-sb-field.is-open, .listinghub-sb-filter-section.is-open {
     box-shadow: 0px 0px 20px 5px #00000057;
 }
 .listinghub-search-bar-inner>div.listinghub-sb-price-min-wrap, .listinghub-search-bar-inner>div.listinghub-sb-price-min-wrap > button,
 .listinghub-search-bar-inner>div.listinghub-sb-price-max-wrap, .listinghub-search-bar-inner>div.listinghub-sb-price-max-wrap > button,
 .listinghub-search-bar-inner>div.listinghub-sb-beds-wrap, .listinghub-search-bar-inner>div.listinghub-sb-beds-wrap > button   {
     min-width: 120px !important;
+}
+
+/* Google Places autocomplete dropdown (when API key is set) */
+.pac-container {
+	z-index: 99999 !important;
+	font-size: 14px;
+	border-radius: 6px;
+	box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+	margin-left: -37px;
+    margin-top: 15px;
+    width: max-content !important;
+    padding: 0px 5px;
+}
+.pac-container:after{
+	display: none;
+}
+.pac-container .pac-item {
+	padding: 10px 12px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	border: unset;
+    border-bottom: 1px solid;
+}
+.pac-container .pac-item:hover,
+.pac-container .pac-item-selected {
+	background: rgba(154, 106, 254, 0.12);
+}
+.pac-container .pac-icon {
+    margin-top: 0;
+    filter: brightness(0) saturate(100%) invert(46%) sepia(67%) saturate(2674%) hue-rotate(231deg) brightness(100%) contrast(99%);
+}
+.filter-popup-close{
+	display: none;
+}
+.pac-item span {
+    text-wrap: wrap;
+    line-height: 16px;
+}
+@media (max-width: 768px){
+	.pac-container {
+		max-width: 90%;
+	}
+    .listinghub-sb-btn-mobile-filters{
+        display: block;
+        background: transparent;
+        padding: 0;
+    }
+	.listinghub-sb-search-wrap {
+		max-width: 100%;
+		width: 100%;
+	}
+    .listinghub-sb-btn-search{
+        padding: 0 20px;
+    }
+    .listinghub-sb-btn-mobile-filters svg{
+        color: #fff;
+        width: 25px;
+        height: 25px;
+    }
+    .listinghub-sb-radius-wrap,.listinghub-sb-price-min-wrap,.listinghub-sb-price-max-wrap,.listinghub-sb-beds-wrap,.listinghub-sb-renter-wrap,.listinghub-sb-btn-filters{
+        display: none;
+    }
+    .mobile-filter .filter-popup-close{
+        display: block;
+    }
+    .mobile-filter .listinghub-search-bar-inner>div,.mobile-filter .listinghub-search-bar-inner > div > button,.mobile-filter .listinghub-sb-filters-inner > div,.mobile-filter .listinghub-sb-locations-trigger{
+        max-width: 100%;
+        width: 100%;
+        min-width: unset !important;
+    }
+    .listinghub-search-bar-form .listinghub-search-bar-inner{
+        flex-wrap: nowrap;
+        flex-direction: row;
+        gap: 8px;
+    }
+    .mobile-filter .listinghub-search-bar-form .listinghub-search-bar-inner{
+        flex-wrap: wrap;
+        gap: 8px 0px;
+    }
+    .mobile-filter .listinghub-sb-radius-wrap,.mobile-filter .listinghub-sb-price-min-wrap,.mobile-filter .listinghub-sb-price-max-wrap,
+    .mobile-filter  .listinghub-sb-beds-wrap,.mobile-filter .listinghub-sb-renter-wrap{
+        display: block;
+    }
+    .mobile-filter .listinghub-sb-btn-mobile-filters,.mobile-filter .listinghub-sb-btn-search{
+        display: none;
+    }
+    .mobile-filter .listinghub-sb-filters-panel[hidden],.mobile-filter .listinghub-sb-filters-panel{
+        display: block !important;
+    }
+    .mobile-filter .listinghub-sb-filters-panel{
+        margin-top: -11px;
+    }
+    .mobile-filter #listinghub_sb_clear{
+        max-width: unset;
+        width: auto;
+    }
+    .mobile-filter.listinghub-search-bar-wrap{
+        position: fixed;
+        z-index: 999;
+        top: 0;
+        left: 0;
+        height: 100vh !important;
+        background:#9a6afe;
+    }
+    .mobile-filter .listinghub-sb-filters-inner{
+        gap: 8px 0;
+        justify-content: space-between;
+    }
+    .mobile-filter.listinghub-search-bar-wrap form{
+        display: flex;
+        height: 100%;
+        flex-direction: column;
+        justify-content: center;
+        overflow-y: auto;
+    }
+    .mobile-filter .listinghub-sb-search-wrap{
+        width: 58% !important;
+    }
+    .mobile-filter .listinghub-sb-radius-wrap{
+        width: 40% !important;
+    }
+    .mobile-filter .listinghub-sb-price-min-wrap,.mobile-filter .listinghub-sb-price-max-wrap,.mobile-filter .listinghub-sb-beds-wrap,.mobile-filter .listinghub-sb-renter-wrap,
+    .mobile-filter .listinghub-sb-property-section,.mobile-filter .listinghub-sb-bathrooms-section{
+        width: 49% !important;
+    }
+    .mobile-filter .listinghub-sb-btn-apply{
+        width: 100%;
+    }
+    .mobile-filter .listinghub-sb-beds-panel{
+        width: 100%;
+        padding: 10px;
+    }
+    .mobile-filter .listinghub-sb-beds-row label{
+        padding: 0;
+    }
+    .mobile-filter .listinghub-sb-beds-row .listinghub-sb-select{
+        min-width: 70px;
+        max-width: 70px;
+        padding: 10px;
+    }
+    .mobile-filter .listinghub-sb-simple-panel,.mobile-filter .listinghub-sb-checklist-panel,.mobile-filter .listinghub-sb-locations-popup{
+        width: 100%;
+        max-width: 100%;
+    }
+	.filter-popup-close {
+		position: absolute;
+		top: 20px;
+		right: 20px;
+		font-size: 30px;
+		color: #fff;
+		font-family: cursive;
+	}
+}
+@media(max-width: 1214px){
+	.listinghub-sb-btn-search{
+		order: 9;
+	}
+}
+
+@media(min-width: 769px){
+.listinghub-search-bar-wrap.filter-url .f-d-none{
+    display: none;
+}
+.listinghub-search-bar-wrap.filter-url {
+    max-width: 600px;
+    margin: auto;
+}
+.listinghub-search-bar-wrap.filter-url .listinghub-sb-search-wrap{
+    max-width: 320px;
+    width: 100%;
+}
+.listinghub-search-bar-wrap.filter-url.filter-url-open {
+    max-width: 1040px;
+}
 }

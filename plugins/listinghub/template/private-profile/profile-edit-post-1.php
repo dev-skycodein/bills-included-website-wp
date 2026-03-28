@@ -438,39 +438,13 @@
 								</div>
 							</div>
 							<hr/>
-							<span class="caption-subject">	
-								<?php  esc_html_e('More Details ','listinghub'); ?>
-							</span>								
-							<hr/>
 							<div class="row" id="listinghub_fields">
 								<?php							
 															
 									echo  ''.$main_class->listinghub_listing_fields($post_edit->ID, $post_cats );
 								?>			
 							</div>
-							
-							<span class="caption-subject">	
-								<?php  esc_html_e('Business Hours ','listinghub'); ?>
-							</span>									
-							<hr/>
-							<div class="">
-								<?php							
-									include( ep_listinghub_template. 'private-profile/listing-open-close-time.php');						
-									?>		
-							</div>
-							
-							<span class="caption-subject">	
-								<?php  esc_html_e('FAQs ','listinghub'); ?>
-							</span>								
-							<hr/>
-							<div class="row">
-								<?php							
-									include( ep_listinghub_template. 'private-profile/profile-add-edit-faq.php');						
-									?>		
-							</div>
-							
-							
-							
+
 														
 							<span class="caption-subject">												
 								<?php  esc_html_e('Button Setting','listinghub'); ?>

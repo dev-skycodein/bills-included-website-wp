@@ -322,16 +322,20 @@ function send_message_claim(){
 	   if (isLogged=="0") {
                      alert(listinghub_data.Please_login);
         } else {
-			var form = jQuery("#message-claim");
-			if (jQuery.trim(jQuery("#message-content", form).val()) == "") {
-                  alert(listinghub_data.Please_put_your_message);
+			var form = jQuery("#listinghub-claim-form");
+			if (!form.length) return;
+			if (
+				jQuery.trim(jQuery("#claim_email_address", form).val()) === "" ||
+				jQuery.trim(jQuery("#claim_message_content", form).val()) === ""
+			) {
+                  alert(listinghub_data.Please_put_your_claim_message || listinghub_data.Please_put_your_message);
 			} else {
 				var ajaxurl = listinghub_data.ajaxurl;
 				var loader_image = listinghub_data.loading_image;
 				jQuery('#update_message_claim').html(loader_image);
 				var search_params={
 					"action"  : 	"listinghub_claim_send",
-					"form_data":	jQuery("#message-claim").serialize(),
+					"form_data":	form.serialize(),
 					"_wpnonce":  	listinghub_data.listing,
 				};
 				jQuery.ajax({
@@ -341,7 +345,7 @@ function send_message_claim(){
 					data : search_params,
 					success : function(response){
 						jQuery('#update_message_claim').html('   '+response.msg );
-						jQuery("#message-claim").trigger('reset');
+						form.trigger('reset');
 
 					}
 				});
@@ -428,31 +432,49 @@ jQuery('#similarPrppertycarousel').bcSwipe({ threshold: 50 });
 
 function listinghub_contact_send_message_iv(){
 	"use strict";
-	var formc = jQuery("#message-pop");
-	
-	if (jQuery.trim(jQuery("#email_address",formc).val()) == "" || jQuery.trim(jQuery("#name",formc).val()) == "" || jQuery.trim(jQuery("#message-content",formc).val()) == "") {
-		alert(listinghub_data.Please_put_your_message);
-		} else {
-		var ajaxurl = listinghub_data.ajaxurl;
-		var loader_image =listinghub_data.loading_image;
-		jQuery('#update_message_popup').html(loader_image);
-		var search_params={
-			"action"  : 	"listinghub_message_send",
-			"form_data":	jQuery("#message-pop").serialize(),
-			"_wpnonce":  	listinghub_data.contact,
-		};
-		jQuery.ajax({
-			url : ajaxurl,
-			dataType : "json",
-			type : "post",
-			data : search_params,
-			success : function(response){
-				jQuery('#update_message_popup').html(listinghub_data.success );
-				jQuery("#message-pop").trigger('reset');
-				jQuery.colorbox.close();
-			}
-		});
+	// Unique ID so we never validate the wrong form (author email / profile also used id="message-pop").
+	var formc = jQuery("#listinghub-contact-form");
+	if (!formc.length) {
+		return;
 	}
+	var nameOk = jQuery.trim(formc.find("#name").val()) !== "";
+	var emailOk = jQuery.trim(formc.find("#email_address").val()) !== "";
+	var moveOk = formc.find("#enquiry_move_when").length ? jQuery.trim(formc.find("#enquiry_move_when").val()) !== "" : true;
+	var budgetOk = formc.find("#enquiry_budget").length ? jQuery.trim(formc.find("#enquiry_budget").val()) !== "" : true;
+	var bedsOk = formc.find("#enquiry_bedrooms").length ? jQuery.trim(formc.find("#enquiry_bedrooms").val()) !== "" : true;
+	var legacyMsgOk = formc.find("#message-content").length ? jQuery.trim(formc.find("#message-content").val()) !== "" : true;
+	if (!nameOk || !emailOk) {
+		alert(listinghub_data.Please_put_your_message);
+		return;
+	}
+	if (formc.find("#enquiry_move_when").length) {
+		if (!moveOk || !budgetOk || !bedsOk) {
+			alert(listinghub_data.Please_put_your_message);
+			return;
+		}
+	} else if (!legacyMsgOk) {
+		alert(listinghub_data.Please_put_your_message);
+		return;
+	}
+	var ajaxurl = listinghub_data.ajaxurl;
+	var loader_image = listinghub_data.loading_image;
+	jQuery('#update_message_popup').html(loader_image);
+	var search_params = {
+		"action"  : "listinghub_message_send",
+		"form_data": formc.serialize(),
+		"_wpnonce": listinghub_data.contact,
+	};
+	jQuery.ajax({
+		url : ajaxurl,
+		dataType : "json",
+		type : "post",
+		data : search_params,
+		success : function(response){
+			jQuery('#update_message_popup').html(listinghub_data.success );
+			formc.trigger('reset');
+			jQuery.colorbox.close();
+		}
+	});
 }
 
 function listinghub_save_favorite(id) {  

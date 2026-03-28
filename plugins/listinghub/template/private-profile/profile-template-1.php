@@ -1,13 +1,4 @@
-
-
-
-
-
-
-
- 
-    
-    <?php
+<?php
 	wp_enqueue_script("jquery");
 	wp_enqueue_style('jquery-ui', ep_listinghub_URLPATH . 'admin/files/css/jquery-ui.css');
 	wp_enqueue_script('jquery-ui-core');
@@ -15,8 +6,7 @@
 	wp_enqueue_style('bootstrap', ep_listinghub_URLPATH . 'admin/files/css/iv-bootstrap.css');
 	wp_enqueue_script('bootstrap.min', ep_listinghub_URLPATH . 'admin/files/js/bootstrap.min-4.js');
 	wp_enqueue_script('popper', 		ep_listinghub_URLPATH . 'admin/files/js/popper.min.js');
-	wp_enqueue_style('colorbox', ep_listinghub_URLPATH . 'admin/files/css/colorbox.css');
-	wp_enqueue_script('colorbox', ep_listinghub_URLPATH . 'admin/files/js/jquery.colorbox-min.js');
+	listinghub_enqueue_colorbox();
 	wp_enqueue_style('fontawesome', ep_listinghub_URLPATH . 'admin/files/css/all.min.css');
 	wp_enqueue_style('listinghub_my-account', ep_listinghub_URLPATH . 'admin/files/css/my-account.css');
 	wp_enqueue_style('listinghub_my-account-2', ep_listinghub_URLPATH . 'admin/files/css/my-account-new.css');
@@ -360,7 +350,9 @@
 	"Rejected"=>  esc_html__('Rejected','listinghub'), 
 	"MakeReject"=>  esc_html__('Make Reject','listinghub'), 		
 	) );
-	wp_enqueue_script('listinghub_single-listing', ep_listinghub_URLPATH . 'admin/files/js/single-listing.js');
+	$listinghub_sl_js = defined( 'ep_listinghub_ABSPATH' ) ? ep_listinghub_ABSPATH . 'admin/files/js/single-listing.js' : '';
+	$listinghub_sl_ver = ( $listinghub_sl_js !== '' && file_exists( $listinghub_sl_js ) ) ? (string) filemtime( $listinghub_sl_js ) : null;
+	wp_enqueue_script( 'listinghub_single-listing', ep_listinghub_URLPATH . 'admin/files/js/single-listing.js', array( 'jquery' ), $listinghub_sl_ver, true );
 	wp_localize_script('listinghub_single-listing', 'listinghub_data', array(
 	'ajaxurl' 			=> admin_url( 'admin-ajax.php' ),
 	'loading_image'		=> '<img src="'.ep_listinghub_URLPATH.'admin/files/images/loader.gif">',
@@ -368,7 +360,7 @@
 	'Please_login'=>esc_html__('Please login', 'listinghub' ),
 	'Add_to_Favorites'=>esc_html__('Add to Favorites', 'listinghub' ),
 	'Added_to_Favorites'=>esc_html__('Added to Favorites', 'listinghub' ),
-	'Please_put_your_message'=>esc_html__('Please put your name,email & Cover letter', 'listinghub' ),
+	'Please_put_your_message'=>esc_html__('Please complete Name, Email, and all required fields (move date, budget, bedrooms).', 'listinghub' ),
 	'contact'=> wp_create_nonce("contact"),
 	'listing'=> wp_create_nonce("listing"),
 	'cv'=> wp_create_nonce("Doc/CV/PDF"),

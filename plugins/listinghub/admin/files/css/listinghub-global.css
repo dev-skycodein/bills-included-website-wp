@@ -1,0 +1,1076 @@
+
+
+ 
+    
+    
+
+ 
+    
+    .elementor-1463 .elementor-element.elementor-element-25dcd71 .elementor-price-table__features-list {
+   
+        padding: 1em 2em 4em 2em !important;
+     }
+     .elementor-1463 .elementor-element.elementor-element-1fbd014 .elementor-price-table__features-list {
+        padding: 1em 2em 4em 2em !important;
+     }
+     .elementor-1463 .elementor-element.elementor-element-fcabc00 .elementor-price-table__features-list {
+        padding: 1em 2em 4em 2em !important;
+     }
+     .elementor-price-table {
+         display: flex;
+         flex-direction: column;
+     }
+     .elementor-price-table__header {
+         order: 1;
+     }
+     
+     .elementor-price-table__price {
+         order: 2;
+     }
+     .elementor-price-table__footer {
+         order: 3;
+     }
+     
+     .elementor-price-table__features-list {
+         order: 4;
+     }
+     .elementor-price-table__feature-inner i:before {
+         content: "✓";
+     }
+     .wpo-contact-pg-section .wpcf7-form .form-area .submit-area .theme-btn {
+         border-radius: 0px;
+         font-size: 16px;
+         background: #9a6afe;
+         color: #fff;
+         width: auto;
+         padding: 20px 45px;
+         font-weight: 700;
+         height: auto;
+         line-height: 1;
+     }
+     
+     .wpo-service-section .wpo-service-wrap .wpo-service-item .wpo-service-text h3 a, .wpo-service-section-s2 .wpo-service-wrap .wpo-service-item .wpo-service-text h3 a, .wpo-service-section-s3 .wpo-service-wrap .wpo-service-item .wpo-service-text h3 a {
+         color: #1C1817;
+         pointer-events: none;
+     }
+     h1, h2, h3, h4, h5, h6{
+           font-family: 'Font Website';
+     }
+         
+     .banner-hero.banner-image-single{
+         display:none;
+     }
+     
+     /** Start Block Kit CSS: 72-3-34d2cc762876498c8f6be5405a48e6e2 **/
+     
+     .envato-block__preview{overflow: visible;}
+     
+     /*Kit 69 Custom Styling for buttons */
+     .envato-kit-69-slide-btn .elementor-button,
+     .envato-kit-69-cta-btn .elementor-button,
+     .envato-kit-69-flip-btn .elementor-button{
+         border-left: 0px !important;
+         border-bottom: 0px !important;
+         border-right: 0px !important;
+         padding: 15px 0 0 !important;
+     }
+     .envato-kit-69-slide-btn .elementor-slide-button:hover,
+     .envato-kit-69-cta-btn .elementor-button:hover,
+     .envato-kit-69-flip-btn .elementor-button:hover{
+         margin-bottom: 20px;
+     }
+     .envato-kit-69-menu .elementor-nav-menu--main a:hover{
+         margin-top: -7px;
+         padding-top: 4px;
+         border-bottom: 1px solid #FFF;
+     }
+     /* Fix menu dropdown width */
+     .envato-kit-69-menu .elementor-nav-menu--dropdown{
+         width: 100% !important;
+     }
+     
+     
+     .bootstrap-wrapper .form-control {
+         height: calc(3.00em) !important;
+         border-radius: 0.3rem;
+         border: 1px solid rgba(26, 15, 9, 0.1);
+         font-size: 16px;
+         font-weight: 400;
+         color: #212529;
+         margin-top: 20px;
+     }
+     #listinghub_registration .form-control {
+         height: 40px;
+         font-size: 14px;
+         font-weight: normal;
+         color: #333333;
+         background-color: #fff;
+         border: 1px solid #e5e5e5;
+         -webkit-box-shadow: none;
+         box-shadow: none;
+         border-radius: 0 !important;
+         -webkit-transition: border-color ease-in-out .15s, box-shadow ease-in-out .15s;
+         transition: border-color ease-in-out .15s, box-shadow ease-in-out .15s;
+         margin-top: 10px;
+     }
+     /** End Block Kit CSS: 72-3-34d2cc762876498c8f6be5405a48e6e2 **/
+     #login-2 h3 {
+         color: #000000;
+         text-align: center;
+         font-size: 28px;
+         margin: 20px 0;
+         font-weight: 400 !important;
+         font-family: 'Font Website';
+     }
+     
+     .blog-sidebar .wp-block-search .wp-block-search__button {
+         line-height: inherit;
+         background: transparent;
+         font-size: 20px;
+         color: #fff;
+             background-color: #6ec1e4;}
+     
+     .bootstrap-wrapper .btn-custom 
+         {
+              font-family: 'Font Website';
+         }
+         
+         .btn{
+              font-family: 'Font Website';
+             font-weight: 400 !important;
+         }
+     
+         
+         .form-control-sm {
+         min-height: calc(1.5em + .5rem + 2px);
+         /* padding: .25rem .5rem; */
+         font-size: .875rem;
+         border-radius: .2rem;
+     }
+         
+         .bootstrap-wrapper .form-control {
+         height: calc(3.00em);
+         border-radius: 0.3rem;
+         border: 1px solid #c6c3c4;
+         font-size: 16px;
+         font-weight: 400;
+         color: #212529;
+         margin-top: 10px;
+     }
+     
+         .blog-sidebar .widget h3:before, .blog-sidebar .widget h2:before {
+         content: "";
+             background-color: #6ec1e4;
+     }
+     
+     .wpo-blog-single-section .comment-respond .form-submit input {
+         font-family: "Epilogue";
+         max-width: 185px;
+         background-color: #9a6afe;}
+     
+     
+     .wpo-blog-pg-section .post a.read-more {
+         text-transform: uppercase;
+         font-size: 16px;
+         font-weight: 500;
+         color:  #9a6afe;
+     }
+     
+     .wpo-blog-single-section .comment-respond .comment-form p a{
+          color:  #9a6afe;
+     }
+     .wpo-blog-single-section .post blockquote{
+         display:none;
+     }
+     .bootstrap-wrapper .btn.btn-big{
+         margin-top:10px;
+     }
+     .wpo-blog-pg-section .entry-meta ul li{
+         display:none;
+     }
+     /*for signup button*/
+     .elementor-button {
+         background-color: #9A6AFE; 
+         
+        
+     }
+     
+     /* @media (min-width: 768px) {
+         .col-md-4 {
+             margin-left: 10px;
+                     flex: auto;
+         }
+     } */
+     
+     .bootstrap-wrapper .btn-custom {
+         color: var(--btn-font-color);
+         background: #9a6afe;
+         border-radius: 8px !important;
+         padding: 14px 25px;
+         font-size: 18px;
+         line-height: 1;
+         -webkit-transition: 0.2s;
+         transition: 0.2s;
+         margin-top: 10px;
+     
+     }
+     
+     .bootstrap-wrapper .form-control {
+         border: none; 
+         border-bottom: 1px solid gray; 
+         outline: none;
+         border-radius:0 !important;
+     }
+     .login-form label{
+         display:none !important;
+     }
+     #login-2 h3{
+         margin-bottom:50px !important;
+     }
+     
+     #login-2 .content-real .create-account {
+         padding: 0;
+         text-align: center;
+         background-color: transparent !important;
+         border-radius: 0;
+         white-space: nowrap;
+     }
+     #login-2 .content-real .create-account p a {
+         font-weight: 400 !important;
+         font-size: 12px !important;
+           line-height:14px !important;
+        color:#9A6AFE !important;
+           font-family:'sora' !important;
+     }
+     .forgot-link{
+           font-weight: 400 !important;
+         font-size: 12px !important;
+           line-height:14px !important;
+        color:#9A6AFE !important;
+           font-family:'sora' !important;
+         text-transform:capitalize !important;
+     }
+     #login-2 .form-control-solid {
+     padding: 0px 0px !important;
+         margin-bottom:33px !important;
+           font-family:'sora' !important;
+         color:#000 !important;
+     }
+     #login-2 .login-form {
+         margin-bottom: 70px !important;
+     }
+     .bootstrap-wrapper .btn-custom{
+     background-color:#9a69fe !important;
+     }
+     
+     
+     /*REVIEW*/
+     
+     .review-listing {
+         display: none !important;
+         
+     }
+     
+     
+     /*SignUp*/
+     
+     
+     /* Styling for the listinghubborder div with no background */
+     .listinghubborder {
+         
+          margin-bottom: 33px !important;
+         font-family: 'sora' !important;
+         text-transform: uppercase !important;
+         color: #000 !important;
+         border: 2px solid gray; ; /* Adds a blue border */
+         
+         padding: 20px;  /* Adds space inside the div */
+         border-radius: 10px; /* Rounds the corners */
+         background-color: transparent; /* No background color */
+         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); /* Soft shadow around the div */
+         margin-bottom: 20px; /* Space below the div */
+         
+     }
+     
+     
+     .bootstrap-wrapper .border-bottom {
+     
+         color: #6c7a89;
+         text-align: left;
+         font-size: 20px;
+         margin: 20px 0;
+         font-weight: 400 !important;
+         
+     
+     }
+     
+     
+     /* Optional: Adds some spacing between content in the div */
+     .listinghubborder > * {
+         margin-bottom: 15px;
+     }
+     
+     #listinghub_registration .form-control {
+         
+         
+          border-top : none !important;
+          border-right : none !important;
+          border-left : none !important;
+         border-bottom: 1px solid !important;
+     
+          cursor: pointer;
+     }
+     .bootstrap-wrapper .btn.btn-secondary{
+     background-color:#9a69fe !important;
+         border-color :#9a69fe !important;
+          text-transform: uppercase !important;
+     }
+     
+     #listinghub_registration .form-control {
+        
+         font-size: 14px;
+        
+     }
+     
+     /* Label styling with padding */
+      label {
+         font-size: 16px; /* Label font size */
+         color: #555; /* Label text color */
+          margin-top: 10px;
+         margin-bottom: 10px; /* Space below the label */
+         display: block; /* Ensure labels are displayed on their own line */
+         padding: 5px 10px; /* Padding inside the label (top/bottom and left/right) */
+     }
+     
+     /* Styling for the listinghubborder div */
+     .listinghubborder {
+         border: 2px solid #4A90E2; /* Adds a blue border */
+         padding: 20px; /* Adds space inside the div */
+         border-radius: 10px; /* Rounds the corners */
+         background-color: transparent; /* No background color */
+         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); /* Soft shadow around the div */
+         margin-bottom: 20px; /* Space below the div */
+     }
+     
+     /* Optional: Adds some spacing between content in the div */
+     .listinghubborder > * {
+         margin-bottom: 15px;
+     }
+     
+     
+     .listinghubborder > * {
+         margin-bottom: 15px;
+         padding: 10px 11px 10px 11px;
+     }
+     
+     
+     
+     /*form placeholder*/
+     
+     .form-input {
+         width: 100%; /* Ensures full width within parent container */
+         max-width: 500px; /* Prevents excessive stretching on larger screens */
+         padding: 12px 10px;
+         font-size: 12px;
+         border: 1px solid #ccc;
+         border-radius: 6px; /* Soft rounded edges */
+         outline: none;
+         transition: border-color 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+     }
+     
+     .form-input:focus {
+         border-color: #007bff; /* Bootstrap primary blue */
+         box-shadow: 0 0 8px rgba(0, 123, 255, 0.3);
+     }
+     
+     input[type="file"].form-input {
+         border-width: 0 !important;
+         border-radius: 0 !important; /* No rounded corners */
+         padding: 8px; /* Adjust padding if needed */
+     }
+     .card-img-top-listing{
+         display: grid;
+       grid-template-columns: repeat(3, 1fr); /* Creates 3 equal columns */
+       column-gap: 20px; /* Adjust spacing between cards */
+     }
+     
+         
+     body.logged-in .hide-for-logged-in {
+         display: none !important;
+     }
+     .gallery-slider .slick-arrow{
+        z-index: 1;
+     }
+     #forget-password #back-btn {
+         margin-bottom: 0px !important;;
+         margin-top: 0px;
+         color: #9a69fe;
+         padding: 0;
+         font-weight: 600 !important;
+         cursor: pointer;
+     }
+     /*My Custom CSS*/
+     .form-row {
+         flex-wrap: wrap;
+         justify-content: space-between !important;
+     }
+     #listinghub_search_form .form-group{
+         max-width: 20%;
+             padding: 0 10px;
+     }
+     .bootstrap-wrapper .form-row  .form-control{
+         margin-top: 0;
+     }
+     .customcheck {
+         font-size: 0px !important;
+         min-width: 90px !important;
+     }
+     .customcheck:after {
+         content: "Filters";
+         font-size: 16px;
+         line-height: 1;
+     }
+     .form-row .input-group{
+         align-items: center;
+         margin-top: 0 !important;
+     }
+     .form-group button.btn.btn-big.mb-2 {
+         margin: 0;
+     }
+     .ms-options-wrap > button{
+         padding: 0.375rem 1rem !important;
+     }
+     #sort_listing_div{
+         display: block !important;
+     }
+     span.listing-tearm {
+         margin-top: 15px;
+         display: block;
+     }
+     .tooltip-package .tooltip-p {
+         max-width: 550px;
+         text-transform: none;
+         text-align: center;
+         background: #9a69fe;
+         padding: 15px 5px;
+         color: #fff;
+         font-size: 13px;
+         border-radius: 13px;
+         transition: .5s;
+         display: none;
+         position: absolute;
+     }
+     
+     .tooltip-package .info-myicon {
+         color: #9a69fe;
+     }
+     .tooltip-package .info-myicon:hover + .tooltip-p{
+         display: block;
+     }
+     .home-search-tab .e-n-tabs-heading{
+         display: flex !important;
+     }
+     .home-search-tab .e-n-tabs-heading button {
+         width: 50% !important;
+         flex-basis: auto;
+     }
+     .home-search-tab .e-n-tabs-heading button:nth-child(1) {
+         border-radius: 15px 0 0 0;
+     }
+     .home-search-tab .e-n-tabs-heading button:nth-child(2) {
+         border-radius: 0 15px 0 0;
+     }
+     label.home-search-label {
+         padding: 0;
+     }
+     input.home-search-submit {
+         font-family: "Font Website", sans-serif !important;
+         width: 130px;
+         border: unset;
+         background: #9a6afe;
+         color: #fff;
+         border-radius: 5px;
+         min-height: 40px;
+     }
+     .home-search-div {
+         display: flex;
+         gap: 5px;
+         align-content:flex-start;
+     }
+     .home-search {
+         font-family: "Font Website", sans-serif !important;
+     }
+     .home-search-dropdown-div {
+         width: 100%;
+             position: relative;
+     }
+     ul.home-search-dropdown {
+         padding: 0 0;
+         margin: 10px 0 0;
+         box-shadow: 0px 0px 2px;
+         border-radius: 8px;
+         position: absolute;
+         width: 100%;
+         background: #fff;
+         max-height: 230px;
+         overflow-y: auto;
+     }
+     
+     ul.home-search-dropdown li {
+         list-style-type: none;
+         border-bottom: 1px solid #d6d6d6;
+         padding: 10px 10px;
+         font-family: 'Font Website';
+         color: #000;
+         cursor: pointer;
+         display: flex;
+         gap: 5px;
+     }
+     ul.home-search-dropdown li i{
+         margin-top: 3px !important;
+     }
+     ul.home-search-dropdown li:hover{
+         background: #9a6afe;
+         color: #fff;
+     }
+     .elementor-element-3994952d{
+         z-index: 1;	
+     }
+     
+     ul.home-search-dropdown li .dropdown-postcode {
+         font-size: 12px;
+     }
+     ul.home-search-dropdown li i {
+         margin-top: 2px;
+     }
+     .home-search-dropdown{
+         display: none;
+     }
+     .archive-blog span.meta-date {
+         width: 100%;
+         pointer-events: none;
+         background: transparent !important;
+     }
+     .archive-blog span.meta-date i,.archive-blog span.meta-date span{
+         color: #000;
+     }
+     .archive-blog span.post-cat {
+         pointer-events: none;
+     }
+     .archive-blog img {
+         min-height: 250px;
+         object-fit: cover;
+         width: 100%;
+     }
+     .archive-blog .post-meta-list > span{
+         font-size: 12px;
+     }
+     .page-id-1464 .elementor-element-5d68ba0 ,.page-id-1467 .elementor-element-5d68ba0,.single-listing .elementor-element-5d68ba0,.page-id-3313 .elementor-element-5d68ba0,.page-id-11 .elementor-element-5d68ba0,.page-id-4383 .elementor-element-5d68ba0,.page-id-1469 .elementor-element-5d68ba0,.page-id-7285 .elementor-element-5d68ba0{
+         background: #000 !important;
+     }
+     .page-id-1464 .elementor-element-734ab53 ,.page-id-1467 .elementor-element-734ab53,.single-listing .elementor-element-734ab53,.elementor-page-2174 .elementor-element-734ab53,.page-id-3313 .elementor-element-734ab53,.page-id-11 .elementor-element-734ab53,.page-id-4383 .elementor-element-734ab53,.page-id-1469 .elementor-element-734ab53,.page-id-7285 .elementor-element-734ab53{
+         background: #000 !important;
+     }
+     
+     .page-id-1464 .elementor-menu-toggle,.page-id-1467 .elementor-menu-toggle,.single-listing .elementor-menu-toggle,.elementor-page-2174 .elementor-menu-toggle,.page-id-3313 .elementor-menu-toggle,.page-id-11 .elementor-menu-toggle,.page-id-4383 .elementor-menu-toggle,.page-id-1469 .elementor-menu-toggle,.page-id-7285 .elementor-menu-toggle{
+         background: #000 !important;
+     }
+     .page-id-1464 .elementor-menu-toggle svg,.page-id-1467 .elementor-menu-toggle svg,.single-listing .elementor-menu-toggle svg,.elementor-page-2174 .elementor-menu-toggle svg,.page-id-3313 .elementor-menu-toggle svg,.page-id-11 .elementor-menu-toggle svg,.page-id-4383 .elementor-menu-toggle svg,.page-id-1469 .elementor-menu-toggle svg,.page-id-7285 .elementor-menu-toggle svg{
+         fill: #fff !important;
+     }
+     
+     @media(max-width: 767px){
+         #listinghub_search_form .form-group {
+             width: 48%;
+             max-width: 100%;
+         }
+     }
+     @media(max-width: 500px){
+         #listinghub_search_form .form-group {
+             width: 100%;
+             max-width: 100%;
+         }
+     }
+     /*Loader*/
+     .loader-search {
+         width: 25px;
+         height: 25px;
+         border: 5px solid #9a6afe;
+         border-bottom-color: transparent;
+         border-radius: 50%;
+         display: none;
+         box-sizing: border-box;
+            position: absolute;
+         right: 5px;
+         top: 8px;
+         animation: rotation 1s linear infinite;
+         }
+     
+         @keyframes rotation {
+         0% {
+             transform: rotate(0deg);
+         }
+         100% {
+             transform: rotate(360deg);
+         }
+         } 
+     /*Loader End*/
+     
+     li:has(i.author.flaticon-user) {
+       display: none;
+     }
+     
+     li:has(i.ti-comment-alt) {
+       display: none;
+     }
+     
+     #respond.comment-respond {
+       display: none;
+     }
+     
+     .post-category{
+         background-color: #9A6AFE;
+         margin: 0px 15px 5px 0px;
+         padding: 10px 10px 10px 10px;
+         color: #FFFFFF;
+         fill: #FFFFFF;
+         border-radius: 50px 50px 50px 50px;
+         width: fit-content;
+     }
+     
+     .post-date{
+     /* margin-bottom:20px;
+         margin-top:-10px */
+         display:none;
+     }
+     .form-error{
+         display: block;
+     }
+     a.panel-close.close {
+         width: auto;
+     }
+     #listinghub_registration input {
+         margin: 0 !important;
+     }
+     
+     #listinghub_registration label {
+         margin: 10px  0 0!important;
+     }
+     /*My Custom CSS End*/
+     
+     /*Account Page*/
+     .my-hide{
+         display:none !important;
+     }
+     #profile-account2 .container{
+         margin-left: auto !important;
+         margin-right: auto !important;
+         max-width: 100%;
+     }
+     .logged-in .elementor-element-9ba7564,.logged-in .elementor-element-eb0e94e {
+         display: none;
+     }
+     #listinghub-left-menu.sidebar-myaccount {
+         background: transparent;
+     }
+     #profile-account2 .profile-usermenu ul li {
+         border: unset !important;
+         margin-bottom: 5px;
+         margin-top: 5px;
+     }
+     #profile-account2 .profile-usermenu ul li a {
+         border-radius: 35px;
+     }
+     .edit-profile-tab ul#pills-tab {
+         justify-content: end;
+         gap: 10px;
+     }
+     .profile-usermenu ul li i {
+         background: #9a6afe;
+         display: inline-flex;
+         width: 35px !important;
+         height: 35px;
+         justify-content: center;
+         align-items: center;
+         border-radius: 50%;
+         margin-right: 10px;
+             color: #fff !important;
+     }
+     #profile_image_main img {
+         height: 80px;
+         width: auto;
+     }
+     .upload-avatar-row {
+         align-items: center;
+     }
+     #banner_image_main img {
+         max-height: 200px;
+         object-fit: contain;
+         object-position: left;
+         border-radius: 0 !important;
+     }
+     #profile-account2 .tab-content{
+         margin-top: 0 !important;
+     }
+     #profile-account2 label {
+         padding-left: 0;
+     }
+     #cssmenu > ul > li:last-child a{
+         font-weight: 400 !important;
+         font-size: 14px !important;
+         padding: 16px 15px !important;
+         color: #000 !important;
+     }
+     #profile-account2 .container > .row.mt-4 {
+         margin: 0;
+     }
+     #profile-account2 th {
+         background: #000;
+     }
+     #listing-manage_filter input[type="search"], #candidates-manage_filter input[type="search"], #candidates-manage-mobile_filter input[type="search"], #candidates-manage-mobile_filter input[type="search"], #candidate-bookmark_filter input[type="search"] {
+         width: 100% !important;
+     }
+     #tab_current table.table td {
+         border: 1px solid #838ba3 !important;
+     }
+     #stripe_form label {
+         margin-bottom: 0;
+         margin-top: 10px;
+     }
+     .bootstrap-wrapper #stripe_form .form-control{
+         margin-top: 5px;
+     }
+     .listing-func_manage_listing {
+         display: flex;
+         align-items: flex-start;
+         gap: 10px;
+         justify-content: end;
+     }
+     div#faqsall textarea {
+         font-size: 14px;
+         font-weight: normal;
+         line-height: 20px;
+         width: 100%;
+         color: #333333;
+     }
+     div#faqsall,div#day_field_div {
+         margin-bottom: 10px;
+     }
+     span.caption-subject {
+         margin-top: 10px;
+         display: block;
+     }
+     .button-c{
+         padding-left: 12px !important;
+     }
+     
+     #all-bookmark_filter input[type="search"] {
+         width: 100%;
+         height: 41px;
+         border: unset;
+         padding: 20px;
+     }
+     .edit-profile-tab ul#pills-tab {
+         display: none;
+     }
+     .password-field {
+         position: relative;
+     }
+     .password-field .eye-icons {
+         position: absolute;
+         right: 10px;
+         top: 0;
+         transform: translateY(50%);
+     }
+     .password-field .eye-icons i {
+         cursor: pointer;
+     }
+     .password-field .eye-icons i.fa-eye{
+         display: none;
+     }
+     input[disabled] {
+         background: #efefef !important;
+     }
+     span.help-block.form-error {
+         color: red;
+     }
+     /*Account Page End*/
+     
+     /* 		#dirpro_directories .row{
+             justify-content: left !important;
+         } */
+     @media(min-width: 1024px){
+     /* 	#dirpro_directories .listingdata-col {
+         flex: unset !important;
+         width: 32%;
+         } */
+     }
+     
+     .card-body-min-height{
+         height: 100%;
+         display: flex;
+       flex-direction: column;
+         justify-content:space-around;
+     }
+     .card-border-round{
+         display:flex;
+         flex-direction: column;
+     }
+     .card-border-round{
+         height: 100%;
+     }
+     .card-img-container{
+         min-height: 200px;
+     }
+     .card-body-min-height p {
+         margin: 0 !important;
+     }
+     .gallery-slider img{
+         min-height: 200px;
+         max-height: 200px !important;
+     }
+     .page-id-11 .elementor-element-5d68ba0{
+         display: none;
+     }
+     .logged-in.page-id-11 .elementor-element-5d68ba0{
+         display: block;
+     }
+     #listinghub_search_form .form-row {
+         justify-content: left !important;
+     }
+     .stcky-header{
+         position: sticky;
+         top: 0;
+         z-index: 9;
+         background-color: rgb(0 0 0 / 40%);
+         -webkit-backdrop-filter: blur(8px);
+         backdrop-filter: blur(8px);
+     }
+     .card-body a.title {
+         font-size: 14px !important;
+     }
+     .card-body-inner {
+         display: flex;
+         gap: 10px;
+         flex-wrap: wrap;
+     }
+     .card-body-inner i {
+         color: #712e6d;
+     }
+     .card-body-inner p{
+         width: auto;
+     }
+     p.address.custom-meta-data {
+         display: flex;
+         align-items: center;
+         gap: 5px;
+     }
+     .card-body-min-height{
+         min-height: unset !important;
+         gap:8px;
+     }
+     .btn-add-favourites,.btn-added-favourites {
+         background: transparent !important;
+         padding: 0 !important;
+             cursor: pointer;
+     }
+     .heart-icon{
+         height: 40px;
+         width: 40px;
+         border: 1px solid #000;
+         border-radius: 50%;
+         display: flex;
+         justify-content: center;
+         align-items: center;
+     }
+     .heart-icon i{
+         color: #000 !important;
+         font-size: 16px !important;
+     }
+     #menu-new-menu{
+         width: max-content;
+         background: #fff;
+         border-radius: 8px;
+         
+     }
+     .partner-box .elementor-image-box-content {
+         border-top: 1px solid #dfdfdf;
+         padding-top: 25px;
+     }
+     .partner-box .elementor-image-box-wrapper img{
+         margin: auto;
+     }
+     .user_info{
+         padding-top: 0 !important;
+     }
+     .signup-container {
+         align-items: end !important;
+     }
+     .signup-container .e-con-inner {
+         width: max-content;
+         background: #9a6afe;
+         margin: 0;
+         padding: 10px 13px;
+         border-radius: 25px;
+     }
+     @media(max-width: 1024px){
+     .elementskit-navbar-nav-default.elementskit-menu-offcanvas-elements{
+         height: 100vh !important;
+     }
+     }
+     #cancel_text {
+         height: 130px !important;
+         padding: 20px;
+         margin-bottom: 20px;
+     }
+     .partner-box img.arrow-box-right {
+         width: 30px;
+         position: absolute;
+         right: 20px;
+         bottom: 20px;
+     }
+     .partner-box > .elementor-widget-container {
+         transition: .5s !important;
+     }
+     .partner-box{
+         cursor: pointer;
+     }
+     .nav-links ul.page-numbers {
+         width: 100%;
+         background: transparent !important;
+     }
+     .post-pagination ul li {
+         margin-right: 0px !important;
+         margin-top: 0px !important;
+     }
+     .post-type-archive-listing .bootstrap-wrapper {
+         max-width: 1275px;
+         margin: auto;
+     }
+     p.address.custom-meta-data.monthly_rent {
+         width: 100%;
+     }
+     .address.postcode {
+         font-size: 12px;
+     }
+     ul.page-numbers li span.page-numbers.current{
+        background: #9a6afe;
+        border: 2px solid #9a6afe;
+     }
+     .nav-links .page-numbers:hover {
+        background: #9a6afe;
+        border-color: #9a6afe;
+    }
+    .nav-links .page-numbers.dots:hover{
+        color: #000;
+    }
+    ul.page-numbers li:hover a {
+        background: transparent;
+        color: #c9cfd4;
+        border-color: #c9cfd4;
+    }
+    .pagination {
+        margin-top: 20px;
+        margin-bottom: 0px;
+    }
+    #listinghub_search_bar {
+        position: sticky;
+        top: 90px;
+        z-index: 999;
+    }
+    @media(max-width: 1024px){
+        #listinghub_search_bar {
+            top: 140px;
+        }
+    }
+    @media(max-width: 767px){
+        #listinghub_search_bar {
+            top: 150px;
+        }
+    }
+    @media(max-width: 400px){
+        #listinghub_search_bar {
+            top: 135px;
+        }
+    }
+    
+    /* ListingHub - Contact popup form styling */
+    .single-listing label,#message-claim label {
+        font-size: 15px;
+        padding-left: 0;
+        margin-bottom: 0 !important;
+        font-weight: 400 !important;
+    }
+    .single-listing input,
+    .single-listing select,
+    .single-listing textarea,
+    .single-listing input.form-control,
+    .single-listing select.form-control,
+    .single-listing textarea.form-control,
+    .listinghub-contact-form input.form-control,
+    .listinghub-contact-form select.form-control,
+    #message-claim input.form-control,
+    #message-claim select.form-control,
+    #message-claim textarea.form-control{
+        border: 1px solid #d2d2d2 !important;
+        border-radius: 8px !important;
+        height: 45px !important;
+        margin-top: 5px;
+        font-size: 15px !important;
+        box-shadow: unset !important;
+        outline: unset !important;
+        background-color: #fff;
+    }
+    .single-listing textarea,
+    .single-listing textarea.form-control,
+    #message-claim textarea.form-control{
+        height:120px !important;
+    }
+    .modal-footer {
+        border: unset !important;
+        padding: 0 0 20px;
+    }
+    #update_message_claim,#update_message_popup{
+        width: 100%;
+    }
+    /* Remove Colorbox generated close button for this popup */
+    #cboxClose {
+        display: none !important;
+    }
+    #cboxContent{
+        border-radius: 8px;
+    }
+    
+    .modal-header button.close,#cya-claim-close {
+        background: #fff !important;
+        border: 1px solid !important;
+        color: #000;
+        border-radius: 50%;
+        height: 28px;
+        width: 28px;
+        font-size: 24px !important;
+        line-height: 1px !important;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding-top: 3px;
+        position: absolute;
+        right: 30px;
+        z-index: 999;
+    }
+    .modal-footer button,#cya-claim-submit {
+        padding: 15px 40px !important;
+        text-transform: uppercase;
+        font-weight: 400 !important;
+        border-radius:10px !important;
+    }
+    .cya-claim-field label input{
+        height: auto !important;
+    }
+    .modal-title{
+        margin-top: 0 !important;
+    }
+    .single-listing input[readonly] {
+        background: #e5e5e5;
+        cursor: not-allowed;
+    }

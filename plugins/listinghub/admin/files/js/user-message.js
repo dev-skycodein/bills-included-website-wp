@@ -3,7 +3,10 @@ var ajaxurl = listinghub_data_message.ajaxurl;
 var loader_image =listinghub_data_message.loading_image;
 function listinghub_user_message(){
 	"use strict";
-	var formc = jQuery("#message-pop");
+	var formc = jQuery("#listinghub-author-email-form");
+	if (!formc.length) {
+		return;
+	}
 
 		if (jQuery.trim(jQuery("#email_address",formc).val()) == "" || jQuery.trim(jQuery("#message-content",formc).val()) == "") {
 				alert(listinghub_data_message.Please_put_your_message);
@@ -13,7 +16,7 @@ function listinghub_user_message(){
 		jQuery('#update_message_popup').html(loader_image);
 		var search_params={
 			"action"  : 	"listinghub_message_send",
-			"form_data":	jQuery("#message-pop").serialize(),
+			"form_data":	formc.serialize(),
 			"_wpnonce":  	listinghub_data_message.contact,
 		};
 		jQuery.ajax({
@@ -23,7 +26,7 @@ function listinghub_user_message(){
 			data : search_params,
 			success : function(response){
 				jQuery('#update_message_popup').html(response.msg );
-				jQuery("#message-pop").trigger('reset');
+				formc.trigger('reset');
 			}
 		});
 	}

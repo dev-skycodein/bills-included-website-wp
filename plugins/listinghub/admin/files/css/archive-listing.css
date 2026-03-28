@@ -1,22 +1,4 @@
-
-
-
-
-
-
-
- 
-    
-    
-
-
-
-
-
-
- 
-    
-    /*############# emag theme fixing #################*/
+/*############# emag theme fixing #################*/
 :root{
 	--btn-big-color:#0099ff;
 	--btn-small-color:#5f9df7;
@@ -146,7 +128,6 @@
     padding: 5px 15px;
     color: var(--btn-small-font-color);
     font-size: 12px;
-    z-index: 1;
 }
 .btn-urgent-right {
     position: absolute;
@@ -157,7 +138,6 @@
     border-radius: 6px;
     padding: 5px 15px;   
     font-size: 14px;
-    z-index: 1;
 }
 
 /* New Desin end **********************/
@@ -1119,4 +1099,90 @@ width: 100%;
   .cities_img {
     height: 150px !important;
   }
+}
+
+/* Archive sort dropdown (Sort: Highest price / Lowest price / Recent / Oldest) */
+.listinghub-archive-sort {
+  position: relative;
+  display: inline-block;
+  text-align: left;
+}
+
+.listinghub-archive-sort-trigger {
+  display: block;
+  font-weight: 500;
+  background: transparent;
+  border: 0 !important;
+  color: #000;
+  border-bottom: 2px solid #9a6afe !important;
+  padding: 0;
+}
+
+.listinghub-archive-sort-arrow {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-left: 4px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid #555;
+  transition: transform 0.2s;
+}
+
+.listinghub-archive-sort.is-open .listinghub-archive-sort-arrow {
+  transform: rotate(180deg);
+}
+
+.listinghub-archive-sort-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin: 4px 0 0;
+  min-width: 180px;
+  padding: 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  z-index: 100;
+}
+
+.listinghub-archive-sort-dropdown[hidden] {
+  display: none !important;
+}
+
+.listinghub-archive-sort-dropdown li {
+  margin: 0;
+}
+
+.listinghub-archive-sort-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  color: #1a1a1a;
+  font-size: 14px;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.listinghub-archive-sort-option:hover, .listinghub-archive-sort-option:hover span
+{
+    background: #9489c0;
+    color: #fff !important;
+    border-radius: 8px;
+}
+
+.listinghub-archive-sort-option.is-selected {
+  font-weight: 500;
+  color: #4a3d85;
+}
+
+.listinghub-archive-sort-check {
+  color: #9a6afe;
+  font-weight: bold;
+}
+.text-right.clearfix {
+  float: right;
 }

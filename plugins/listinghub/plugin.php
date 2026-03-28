@@ -4276,7 +4276,13 @@
 					$subject=sanitize_text_field($form_data['subject']);
 				} 
 				$my_post['post_title'] =$subject;
-				$my_post['post_content'] = wp_kses( $form_data['message-content'], $allowed_html); 
+				$message_body = '';
+				if ( ! empty( $form_data['message-content'] ) ) {
+					$message_body = wp_kses( wp_unslash( $form_data['message-content'] ), $allowed_html );
+				} elseif ( function_exists( 'listinghub_format_contact_enquiry_message' ) ) {
+					$message_body = wp_kses_post( listinghub_format_contact_enquiry_message( $form_data ) );
+				}
+				$my_post['post_content'] = $message_body;
 				$my_post['post_type'] = 'listinghub_message';
 				$my_post['post_status']='private';												
 				$newpost_id= wp_insert_post( $my_post );
@@ -4289,9 +4295,21 @@
 				if(isset($form_data['name'])){
 					Update_post_meta($newpost_id,'from_name', sanitize_text_field($form_data['name']) );
 				}
-				Update_post_meta($newpost_id,'from_phone', sanitize_text_field($form_data['visitorphone']) );
-				include( ep_listinghub_ABSPATH. 'inc/message-mail.php');	
-				echo json_encode(array("msg" => esc_html__( 'Message Sent', 'listinghub' )));
+				Update_post_meta($newpost_id,'from_phone', sanitize_text_field( isset( $form_data['visitorphone'] ) ? $form_data['visitorphone'] : '' ) );
+				foreach ( array( 'enquiry_move_when', 'enquiry_budget', 'enquiry_bedrooms' ) as $enq_key ) {
+					if ( isset( $form_data[ $enq_key ] ) && $form_data[ $enq_key ] !== '' ) {
+						Update_post_meta( $newpost_id, $enq_key, sanitize_text_field( wp_unslash( $form_data[ $enq_key ] ) ) );
+					}
+				}
+				include( ep_listinghub_ABSPATH. 'inc/message-mail.php');
+				$mail_status = isset( $GLOBALS['listinghub_last_mail_sent'] ) ? $GLOBALS['listinghub_last_mail_sent'] : null;
+				echo json_encode(
+					array(
+						'msg'        => esc_html__( 'Message Sent', 'listinghub' ),
+						'email_sent' => is_array( $mail_status ) ? (bool) $mail_status['to_recipient'] : null,
+						'email_to'   => is_array( $mail_status ) && isset( $mail_status['recipient'] ) ? $mail_status['recipient'] : null,
+					)
+				);
 				exit(0);
 			}
 			public function listinghub_claim_send(){				

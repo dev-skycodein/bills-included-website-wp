@@ -7,7 +7,7 @@ $dir_id=0; if(isset($_REQUEST['dir-id'])){$dir_id=sanitize_text_field($_REQUEST[
 			<h3><?php   esc_html_e( 'Message Board', 'listinghub' ); ?></h3>	
 		</div>
 		<div class="clearfix"></div>
-		<form action="" id="message-pop" name="message-pop"  method="POST" role="form">
+		<form action="" id="listinghub-profile-message-form" name="message-pop" method="POST" role="form">
 		  <div class="form-group">
 			<label for="text" class="control-label"><?php   esc_html_e( 'Subject', 'listinghub' ); ?></label>
 			<input type="text" class="form-control" id="subject" placeholder="<?php esc_html_e( 'Enter Subject', 'listinghub' );?>">

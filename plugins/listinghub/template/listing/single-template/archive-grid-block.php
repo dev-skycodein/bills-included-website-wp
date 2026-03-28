@@ -19,7 +19,7 @@ jQuery(document).ready(function($) {
 				infinite: true,
 				speed: 500,
 				autoplay: false,
-				autoplaySpeed: 3000,
+				autoplaySpeed: 3000
 			});
 		}
 	});
@@ -27,28 +27,47 @@ jQuery(document).ready(function($) {
 </script>
 <style>
 	.gallery-slider {
-    position: relative;
-}
-.gallery-slider img{
-    max-height:290px;
-    width: 100%;
-}
-.gallery-slider .slick-active img{
-    position: relative;
-    z-index: 1;
-}
-.slick-arrow{
-    z-index: 9999;
-}
-.slick-prev{
-    left: 8px;
-}
-.slick-next{
-    right: 20px;
-}
-.slick-prev:before,.slick-next:before{
-    font-size: 36px;
-}
+		position: relative;
+		overflow: hidden; /* prevent vertical stack flash before slick init */
+	}
+
+	/* Hide all slides by default, show only first until slick initializes */
+	.gallery-slider > div {
+		display: none;
+	}
+
+	.gallery-slider > div:first-child {
+		display: block;
+	}
+
+	/* Once slick is initialized, let slick control slide visibility */
+	.gallery-slider.slick-initialized > div {
+		display: block;
+	}
+
+	.gallery-slider img {
+		max-height: 290px;
+		width: 100%;
+		display: block;
+	}
+
+	.gallery-slider .slick-active img {
+		position: relative;
+		z-index: 1;
+	}
+
+	.slick-prev {
+		left: 8px;
+	}
+
+	.slick-next {
+		right: 20px;
+	}
+
+	.slick-prev:before,
+	.slick-next:before {
+		font-size: 36px;
+	}
 </style>
 <?php
 }
@@ -88,21 +107,53 @@ jQuery(document).ready(function($) {
                             ?>
                     <div class="gallery-slider">
                         <?php
-                        if (!empty($gallery_ids_array)) {
-                            foreach ($gallery_ids_array as $slide) {
-                                if ($slide != '') { ?>
+                        if ( ! empty( $gallery_ids_array ) ) {
+	                        $max_slides = 5;
+	                        $count      = 0;
+	                        foreach ( $gallery_ids_array as $slide ) {
+		                        if ( $count >= $max_slides ) {
+			                        break;
+		                        }
+		                        $slide = trim( $slide );
+		                        if ( $slide === '' ) {
+			                        continue;
+		                        }
+		                        ?>
                                     <div>
-                                        <a href="<?php echo get_the_permalink($id);?>">
-                                            <img class="img-fluid rounded mt-0" src="<?php echo wp_get_attachment_url($slide); ?>">
+                                        <a href="<?php echo get_the_permalink( $id ); ?>">
+											<?php
+											// Use WP image functions for responsive sizes + lazy loading to reduce payload.
+											echo wp_get_attachment_image(
+												$slide,
+												'medium_large',
+												false,
+												array(
+													'class'   => 'img-fluid rounded mt-0',
+													'loading' => 'lazy',
+												)
+											);
+											?>
                                         </a>
                                     </div>
-                                <?php }
-                            }
-                        }
-                        else{
-                            ?>
+                                <?php
+		                        $count++;
+	                        }
+                        } else {
+	                        ?>
                             <div>
-                                <a href="<?php echo get_the_permalink($id);?>"><img src="<?php echo esc_url( $feature_img ); ?>" class="card-img-top-listing img-fluid rounded mt-0"></a>
+                                <a href="<?php echo get_the_permalink( $id ); ?>">
+									<?php
+									echo wp_get_attachment_image(
+										$feature_img,
+										'medium_large',
+										false,
+										array(
+											'class'   => 'card-img-top-listing img-fluid rounded mt-0',
+											'loading' => 'lazy',
+										)
+									);
+									?>
+								</a>
                             </div>
                             <?php
                         }

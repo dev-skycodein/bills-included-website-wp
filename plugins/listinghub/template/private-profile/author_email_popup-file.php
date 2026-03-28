@@ -4,7 +4,7 @@
 	$user_id=0; if(isset($_REQUEST['user_id'])){$user_id=sanitize_text_field($_REQUEST['user_id']);}	
 	$dir_id=0; if(isset($_REQUEST['dir_id'])){$dir_id=sanitize_text_field($_REQUEST['dir_id']);}
 ?>
-<div class="bootstrap-wrapper  "id="popup-contact" >		
+<div class="bootstrap-wrapper" id="listinghub-author-email-popup">		
 	<div class="container" >
 		<div class="row" >
 			<div class="col-md-12">
@@ -18,7 +18,7 @@
 				<div class="modal-body">
 					<div class="row">
 						<div class="col-md-12 col-sm-12">
-							<form action="#" id="message-pop" name="candidate-message"   method="POST" >
+							<form action="#" id="listinghub-author-email-form" name="candidate-message" method="POST">
 								<div class="form-group  ">
 									<label  for="Name"><?php  esc_html_e( 'Subject', 'listinghub' ); ?></label>
 									<input  class=" form-control" id="subject" name ="subject" type="text">

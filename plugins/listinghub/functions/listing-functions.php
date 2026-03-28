@@ -439,8 +439,11 @@ if (!function_exists('listinghub_get_search_args')) {
 			$category_query, $tag_query, $location_query,
 			
 		);
-		if (!empty($_GET['input-search'])) {
-			$keyword = sanitize_text_field($_GET['input-search']);
+		// Keyword search (postcode / city / address).
+		// If we already have a precise point from Places (latitude/longitude),
+		// we rely on the radius filter instead of re-filtering by text match.
+		if ( ! empty( $_GET['input-search'] ) && ( empty( $_REQUEST['latitude'] ) || empty( $_REQUEST['longitude'] ) ) ) {
+			$keyword = sanitize_text_field( wp_unslash( $_GET['input-search'] ) );
 		
 			$meta_query = [
 				'relation' => 'OR',
@@ -521,9 +524,14 @@ if (!function_exists('listinghub_get_search_args')) {
 		}
 
 		// Bedrooms min/max (meta key: bedrooms)
-		$min_bedrooms = isset( $_REQUEST[ $field_prefix . 'search_bedrooms_min' ] ) ? intval( $_REQUEST[ $field_prefix . 'search_bedrooms_min' ] ) : 0;
-		$max_bedrooms = isset( $_REQUEST[ $field_prefix . 'search_bedrooms_max' ] ) ? intval( $_REQUEST[ $field_prefix . 'search_bedrooms_max' ] ) : 0;
-		if ( $min_bedrooms || $max_bedrooms ) {
+		$raw_min_beds = isset( $_REQUEST[ $field_prefix . 'search_bedrooms_min' ] ) ? trim( wp_unslash( $_REQUEST[ $field_prefix . 'search_bedrooms_min' ] ) ) : '';
+		$raw_max_beds = isset( $_REQUEST[ $field_prefix . 'search_bedrooms_max' ] ) ? trim( wp_unslash( $_REQUEST[ $field_prefix . 'search_bedrooms_max' ] ) ) : '';
+
+		// Empty string means \"Any\" (no filter). Only non-empty strings are converted to integers.
+		$min_bedrooms = ( $raw_min_beds === '' ) ? null : intval( $raw_min_beds );
+		$max_bedrooms = ( $raw_max_beds === '' ) ? null : intval( $raw_max_beds );
+
+		if ( $min_bedrooms !== null || $max_bedrooms !== null ) {
 			if ( $min_bedrooms && $max_bedrooms && $min_bedrooms > $max_bedrooms ) {
 				$tmp = $min_bedrooms;
 				$min_bedrooms = $max_bedrooms;
@@ -533,10 +541,10 @@ if (!function_exists('listinghub_get_search_args')) {
 				'key'     => 'bedrooms',
 				'type'    => 'NUMERIC',
 			);
-			if ( $min_bedrooms && $max_bedrooms ) {
+			if ( $min_bedrooms !== null && $max_bedrooms !== null ) {
 				$beds_clause['value']   = array( $min_bedrooms, $max_bedrooms );
 				$beds_clause['compare'] = 'BETWEEN';
-			} elseif ( $min_bedrooms ) {
+			} elseif ( $min_bedrooms !== null ) {
 				$beds_clause['value']   = $min_bedrooms;
 				$beds_clause['compare'] = '>=';
 			} else {
@@ -558,9 +566,13 @@ if (!function_exists('listinghub_get_search_args')) {
 		}
 
 		// Bathrooms min/max (meta key: bathrooms)
-		$min_bathrooms = isset( $_REQUEST[ 'sfbathrooms_min' ] ) ? intval( $_REQUEST[ 'sfbathrooms_min' ] ) : 0;
-		$max_bathrooms = isset( $_REQUEST[ 'sfbathrooms_max' ] ) ? intval( $_REQUEST[ 'sfbathrooms_max' ] ) : 0;
-		if ( $min_bathrooms || $max_bathrooms ) {
+		$raw_min_baths = isset( $_REQUEST[ 'sfbathrooms_min' ] ) ? trim( wp_unslash( $_REQUEST[ 'sfbathrooms_min' ] ) ) : '';
+		$raw_max_baths = isset( $_REQUEST[ 'sfbathrooms_max' ] ) ? trim( wp_unslash( $_REQUEST[ 'sfbathrooms_max' ] ) ) : '';
+
+		$min_bathrooms = ( $raw_min_baths === '' ) ? null : intval( $raw_min_baths );
+		$max_bathrooms = ( $raw_max_baths === '' ) ? null : intval( $raw_max_baths );
+
+		if ( $min_bathrooms !== null || $max_bathrooms !== null ) {
 			if ( $min_bathrooms && $max_bathrooms && $min_bathrooms > $max_bathrooms ) {
 				$tmp = $min_bathrooms;
 				$min_bathrooms = $max_bathrooms;
@@ -570,10 +582,10 @@ if (!function_exists('listinghub_get_search_args')) {
 				'key'  => 'bathrooms',
 				'type' => 'NUMERIC',
 			);
-			if ( $min_bathrooms && $max_bathrooms ) {
+			if ( $min_bathrooms !== null && $max_bathrooms !== null ) {
 				$baths_clause['value']   = array( $min_bathrooms, $max_bathrooms );
 				$baths_clause['compare'] = 'BETWEEN';
-			} elseif ( $min_bathrooms ) {
+			} elseif ( $min_bathrooms !== null ) {
 				$baths_clause['value']   = $min_bathrooms;
 				$baths_clause['compare'] = '>=';
 			} else {
@@ -918,3 +930,58 @@ add_action(
 		wp_send_json_success();
 	}
 );
+
+if ( ! function_exists( 'listinghub_enqueue_colorbox' ) ) {
+	/**
+	 * Enqueue jQuery Colorbox CSS/JS with filemtime versions so edits bypass browser cache.
+	 */
+	function listinghub_enqueue_colorbox() {
+		if ( ! defined( 'ep_listinghub_URLPATH' ) || ! defined( 'ep_listinghub_ABSPATH' ) ) {
+			return;
+		}
+		$css_path = ep_listinghub_ABSPATH . 'admin/files/css/colorbox.css';
+		$js_path  = ep_listinghub_ABSPATH . 'admin/files/js/jquery.colorbox-min.js';
+		$m_css    = file_exists( $css_path ) ? (int) filemtime( $css_path ) : 0;
+		$m_js     = file_exists( $js_path ) ? (int) filemtime( $js_path ) : 0;
+		$ver      = max( $m_css, $m_js );
+		$ver      = $ver > 0 ? (string) $ver : '';
+		wp_enqueue_style(
+			'colorbox',
+			ep_listinghub_URLPATH . 'admin/files/css/colorbox.css',
+			array(),
+			$ver !== '' ? $ver : null
+		);
+		wp_enqueue_script(
+			'colorbox',
+			ep_listinghub_URLPATH . 'admin/files/js/jquery.colorbox-min.js',
+			array( 'jquery' ),
+			$ver !== '' ? $ver : null,
+			true
+		);
+	}
+}
+
+if ( ! function_exists( 'listinghub_format_contact_enquiry_message' ) ) {
+	/**
+	 * Build plain-text body for listing contact when using enquiry dropdowns (no free-text message).
+	 *
+	 * @param array $form_data Parsed form fields from contact popup.
+	 * @return string
+	 */
+	function listinghub_format_contact_enquiry_message( $form_data ) {
+		if ( ! is_array( $form_data ) ) {
+			return '';
+		}
+		$lines = array();
+		if ( ! empty( $form_data['enquiry_move_when'] ) ) {
+			$lines[] = __( 'When are you looking to move?', 'listinghub' ) . ' ' . sanitize_text_field( wp_unslash( $form_data['enquiry_move_when'] ) );
+		}
+		if ( ! empty( $form_data['enquiry_budget'] ) ) {
+			$lines[] = __( 'What is your monthly budget?', 'listinghub' ) . ' ' . sanitize_text_field( wp_unslash( $form_data['enquiry_budget'] ) );
+		}
+		if ( ! empty( $form_data['enquiry_bedrooms'] ) ) {
+			$lines[] = __( 'How many bedrooms do you need?', 'listinghub' ) . ' ' . sanitize_text_field( wp_unslash( $form_data['enquiry_bedrooms'] ) );
+		}
+		return implode( "\n", $lines );
+	}
+}

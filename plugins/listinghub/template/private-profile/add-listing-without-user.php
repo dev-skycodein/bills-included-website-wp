@@ -6,8 +6,7 @@
 	wp_enqueue_style('bootstrap', ep_listinghub_URLPATH . 'admin/files/css/iv-bootstrap.css');
 	wp_enqueue_script('bootstrap.min', ep_listinghub_URLPATH . 'admin/files/js/bootstrap.min-4.js');
 	wp_enqueue_script('popper', 		ep_listinghub_URLPATH . 'admin/files/js/popper.min.js');
-	wp_enqueue_style('colorbox', ep_listinghub_URLPATH . 'admin/files/css/colorbox.css');
-	wp_enqueue_script('colorbox', ep_listinghub_URLPATH . 'admin/files/js/jquery.colorbox-min.js');	
+	listinghub_enqueue_colorbox();
 	wp_enqueue_style('listinghub_myaccount-css', ep_listinghub_URLPATH . 'admin/files/css/my-account.css');
 	wp_enqueue_style('listinghub_myaccount-css-2', ep_listinghub_URLPATH . 'admin/files/css/my-account-new.css');
 	

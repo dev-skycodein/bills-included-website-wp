@@ -11,9 +11,8 @@
 	wp_enqueue_style('bootstrap', 	ep_listinghub_URLPATH . 'admin/files/css/iv-bootstrap.css');
 	wp_enqueue_style('fontawesome', ep_listinghub_URLPATH . 'admin/files/css/fontawesome.css');
 	wp_enqueue_style('jquery.fancybox', ep_listinghub_URLPATH . 'admin/files/css/jquery.fancybox.css');
-	wp_enqueue_style('colorbox', ep_listinghub_URLPATH . 'admin/files/css/colorbox.css');
+	listinghub_enqueue_colorbox();
 	wp_enqueue_style('jquery-ui', ep_listinghub_URLPATH . 'admin/files/css/jquery-ui.css');
-	wp_enqueue_script('colorbox', ep_listinghub_URLPATH . 'admin/files/js/jquery.colorbox-min.js');	
 	wp_enqueue_script('jquery.fancybox',ep_listinghub_URLPATH . 'admin/files/js/jquery.fancybox.js');	
 	wp_enqueue_style('listinghub_single-listing', ep_listinghub_URLPATH . 'admin/files/css/single-listing.css');	
 	
@@ -555,7 +554,9 @@
 	wp_enqueue_script('popper', ep_listinghub_URLPATH . 'admin/files/js/popper.min.js');
 	wp_enqueue_script('bootstrap', ep_listinghub_URLPATH . 'admin/files/js/bootstrap.min-4.js');
 	
-	wp_enqueue_script('listinghub_single-listing', ep_listinghub_URLPATH . 'admin/files/js/single-listing.js');
+	$listinghub_sl_js = defined( 'ep_listinghub_ABSPATH' ) ? ep_listinghub_ABSPATH . 'admin/files/js/single-listing.js' : '';
+	$listinghub_sl_ver = ( $listinghub_sl_js !== '' && file_exists( $listinghub_sl_js ) ) ? (string) filemtime( $listinghub_sl_js ) : null;
+	wp_enqueue_script( 'listinghub_single-listing', ep_listinghub_URLPATH . 'admin/files/js/single-listing.js', array( 'jquery' ), $listinghub_sl_ver, true );
 	wp_localize_script('listinghub_single-listing', 'listinghub_data', array(
 	'ajaxurl' 			=> admin_url( 'admin-ajax.php' ),
 	'loading_image'		=> '<img src="'.ep_listinghub_URLPATH.'admin/files/images/loader.gif">',
@@ -564,7 +565,7 @@
 	'Add_to_Favorites'=>esc_html__('Save', 'listinghub' ),
 	'Added_to_Favorites'=>esc_html__('Saved', 'listinghub' ),
 	'success'=>esc_html__('Message Sent', 'listinghub' ),
-	'Please_put_your_message'=>esc_html__('Please put your name,email Cover letter & attached file', 'listinghub' ),
+	'Please_put_your_message'=>esc_html__('Please complete Name, Email, and all required fields (move date, budget, bedrooms).', 'listinghub' ),
 	'contact'=> wp_create_nonce("contact"),
 	'listing'=> wp_create_nonce("listing"),
 	'cv'=> wp_create_nonce("Doc/CV/PDF"),

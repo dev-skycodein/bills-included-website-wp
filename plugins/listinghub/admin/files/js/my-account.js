@@ -395,7 +395,11 @@ jQuery(".nav-tabs a").on("click", function(){
 
 function listinghub_send_message_iv(){
 	"use strict";
-	if (jQuery.trim(jQuery("#message-content").val()) == "") {
+	var formc = jQuery("#listinghub-profile-message-form");
+	if (!formc.length) {
+		return;
+	}
+	if (jQuery.trim(formc.find("#message-content").val()) == "") {
 		alert("Please put your message");
 		} else {
 		var ajaxurl =listinghub1.ajaxurl;
@@ -403,7 +407,7 @@ function listinghub_send_message_iv(){
 		jQuery('#update_message_popup').html(loader_image);
 		var search_params={
 			"action"  : 	"listinghub_message_send",
-			"form_data":	jQuery("#message-pop").serialize(),
+			"form_data":	formc.serialize(),
 			"_wpnonce":  	listinghub1.contact,
 		};
 		jQuery.ajax({
@@ -413,7 +417,7 @@ function listinghub_send_message_iv(){
 			data : search_params,
 			success : function(response){
 				jQuery('#update_message_popup').html(response.msg );
-				jQuery("#message-pop").trigger('reset');
+				formc.trigger('reset');
 			}
 		});
 	}

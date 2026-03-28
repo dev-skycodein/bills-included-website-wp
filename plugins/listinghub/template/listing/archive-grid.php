@@ -1,4 +1,8 @@
 <?php
+	// Version archive-listing.css by file mtime so cache updates when CSS changes.
+	$listinghub_archive_css = defined( 'ep_listinghub_ABSPATH' ) ? ep_listinghub_ABSPATH . 'admin/files/css/archive-listing.css' : '';
+	$listinghub_archive_ver = ( $listinghub_archive_css !== '' && file_exists( $listinghub_archive_css ) ) ? (string) filemtime( $listinghub_archive_css ) : '';
+
 	wp_enqueue_script("jquery");	
 	wp_enqueue_script('jquery-ui-core');
 	wp_enqueue_script('jquery-ui-datepicker');
@@ -6,9 +10,8 @@
 	wp_enqueue_script('popper', ep_listinghub_URLPATH . 'admin/files/js/popper.min.js');
 	wp_enqueue_script('bootstrap', ep_listinghub_URLPATH . 'admin/files/js/bootstrap.min-4.js'); 
 	wp_enqueue_style('bootstrap', ep_listinghub_URLPATH . 'admin/files/css/iv-bootstrap.css');
-	wp_enqueue_style('listinghub_listing_style_alphabet_sort', ep_listinghub_URLPATH . 'admin/files/css/archive-listing.css');	
-	wp_enqueue_style('colorbox', ep_listinghub_URLPATH . 'admin/files/css/colorbox.css');
-	wp_enqueue_script('colorbox', ep_listinghub_URLPATH . 'admin/files/js/jquery.colorbox-min.js');
+	wp_enqueue_style('listinghub_listing_style_alphabet_sort', ep_listinghub_URLPATH . 'admin/files/css/archive-listing.css', array(), $listinghub_archive_ver );	
+	listinghub_enqueue_colorbox();
 	wp_enqueue_style('jquery-ui', ep_listinghub_URLPATH . 'admin/files/css/jquery-ui.css');
 	wp_enqueue_style('font-awesome', ep_listinghub_URLPATH . 'admin/files/css/all.min.css');	
 	wp_enqueue_style('flaticon', ep_listinghub_URLPATH . 'admin/files/fonts/flaticon/flaticon.css');	 
@@ -96,14 +99,6 @@
 			'compare' => '=',
 		);
 	}
-	// Exclude listings that have been explicitly removed (gsli_removed = 1).
-	if ( ! isset( $args['meta_query'] ) ) {
-		$args['meta_query'] = array();
-	}
-	$args['meta_query'][] = array(
-		'key'     => 'gsli_removed',
-		'compare' => 'NOT EXISTS',
-	);
 	// For featrue listing***********
 	$feature_listing_all =array();
 	$feature_listing_all =$args;
@@ -313,7 +308,9 @@
 	'contact'=> wp_create_nonce("contact"),
 	'listing'=> wp_create_nonce("listing"),
 	) );
-	wp_enqueue_script('listinghub_single-listing', ep_listinghub_URLPATH . 'admin/files/js/single-listing.js');
+	$listinghub_sl_js = defined( 'ep_listinghub_ABSPATH' ) ? ep_listinghub_ABSPATH . 'admin/files/js/single-listing.js' : '';
+	$listinghub_sl_ver = ( $listinghub_sl_js !== '' && file_exists( $listinghub_sl_js ) ) ? (string) filemtime( $listinghub_sl_js ) : null;
+	wp_enqueue_script( 'listinghub_single-listing', ep_listinghub_URLPATH . 'admin/files/js/single-listing.js', array( 'jquery' ), $listinghub_sl_ver, true );
 	wp_localize_script('listinghub_single-listing', 'listinghub_data', array(
 	'ajaxurl' 			=> admin_url( 'admin-ajax.php' ),
 	'loading_image'		=> '<img src="'.ep_listinghub_URLPATH.'admin/files/images/loader.gif">',
@@ -322,7 +319,7 @@
 	'success'=>esc_html__('Message Sent', 'listinghub' ),
 	'Add_to_Favorites'=>esc_html__('Save', 'listinghub' ),
 	'Added_to_Favorites'=>esc_html__('Saved', 'listinghub' ),		
-	'Please_put_your_message'=>esc_html__('Please put your name,email Cover letter & attached file', 'listinghub' ),
+	'Please_put_your_message'=>esc_html__('Please complete Name, Email, and all required fields (move date, budget, bedrooms).', 'listinghub' ),
 	'contact'=> wp_create_nonce("contact"),
 	'dirwpnonce'=> wp_create_nonce("myaccount"),
 	'listing'=> wp_create_nonce("listing"),
