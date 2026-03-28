@@ -640,8 +640,8 @@ if ( (string) get_post_meta( $listingid, 'gsli_removed', true ) === '1' ) {
 			echo wp_kses(
 				sprintf(
 					/* translators: %s: link that opens the claim/removal request form. */
-					__( 'This listing is sourced from the original agent and remains their property. <br>For removal or updates, please %s.', 'listinghub' ),
-					'<a href="#" onclick="if(window.bia_open_claim_agency_popup){bia_open_claim_agency_popup(null, \'' . esc_js( (string) get_post_meta( $listingid, 'agency_post_id', true ) ) . '\', \'' . esc_js( (string) $listingid ) . '\');} return false;" style="color: #9aa521 !important; text-decoration: underline;">' . esc_html__( 'contact us here', 'listinghub' ) . '</a>'
+					__( 'Listings remain the property of the original agent. <br> %s.', 'listinghub' ),
+					'<a href="#" style="color: #6b7280; font-style: italic;" onclick="if(window.bia_open_claim_agency_popup){bia_open_claim_agency_popup(null, \'' . esc_js( (string) get_post_meta( $listingid, 'agency_post_id', true ) ) . '\', \'' . esc_js( (string) $listingid ) . '\');} return false;" style="color:rgb(40, 40, 39) !important; text-decoration: underline;">' . esc_html__( 'Claim or request removal', 'listinghub' ) . '</a>'
 				),
 				array(
 					'a'  => array( 'href' => true, 'style' => true, 'onclick' => true ),

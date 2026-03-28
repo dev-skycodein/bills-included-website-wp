@@ -1119,6 +1119,17 @@ function cya_register_settings() {
 		)
 	);
 
+	// Notification mailbox for claim/removal submissions.
+	register_setting(
+		'cya_recaptcha_settings',
+		'cya_submission_notification_email',
+		array(
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_email',
+			'default'           => 'admin@thebillsincluded.com',
+		)
+	);
+
 	// Claim approval email settings.
 	register_setting(
 		'cya_recaptcha_settings',
@@ -1236,6 +1247,7 @@ function cya_render_settings_page() {
 	$fb_snippet        = get_option( 'cya_firebase_config_snippet', '' );
 	$callback_url      = get_option( 'cya_firebase_callback_url', '' );
 	$dashboard_url     = get_option( 'cya_agency_dashboard_url', '' );
+	$submission_notification_email = get_option( 'cya_submission_notification_email', 'admin@thebillsincluded.com' );
 	$approval_enabled  = (int) get_option( 'cya_approval_email_enabled', 0 );
 	$approval_subject  = get_option( 'cya_approval_email_subject', __( 'Your agency claim has been approved', 'claim-your-agency' ) );
 	$approval_body     = get_option( 'cya_approval_email_body', "Hello {CLAIMANT_NAME},\n\nYour agency claim for {AGENCY_NAME} on {SITE_NAME} has been approved.\n\nYou can access your agency dashboard here: {DASHBOARD_URL}\n\nThanks,\n{SITE_NAME} team" );
@@ -1252,7 +1264,7 @@ function cya_render_settings_page() {
 
 		<div class="notice notice-info" style="margin: 20px 0; padding: 16px 20px; border-left: 4px solid #2271b1; max-width: 800px;">
 			<h2 style="margin: 0 0 12px 0; font-size: 1.1em;"><?php esc_html_e( 'Admin setup: what you need to do for the Claim My Agency flow to work', 'claim-your-agency' ); ?></h2>
-			<p style="margin: 0 0 10px 0;"><?php esc_html_e( 'Complete these steps before testing the full “Claim this agency” + agency owner login flow.', 'claim-your-agency' ); ?></p>
+			<p style="margin: 0 0 10px 0;"><?php esc_html_e( 'Complete these steps before testing the full “Claim your profile” + agency owner login flow.', 'claim-your-agency' ); ?></p>
 			<ol style="margin: 0; padding-left: 20px; line-height: 1.6;">
 				<li><strong><?php esc_html_e( 'Firebase project', 'claim-your-agency' ); ?></strong> — In the Firebase Console, use (or create) a project and enable <strong>Authentication → Sign-in method → Email/Password</strong>. Turn on <strong>Email link (passwordless sign-in)</strong> for that provider.</li>
 				<li><strong><?php esc_html_e( 'Authorized domains', 'claim-your-agency' ); ?></strong> — In Firebase: <strong>Authentication → Settings → Authorized domains</strong>. Add your site domain (e.g. <code>yoursite.com</code>, <code>test.yoursite.com</code>). For local testing, add <code>localhost</code>.</li>
@@ -1263,7 +1275,7 @@ function cya_render_settings_page() {
 				<li><strong><?php esc_html_e( 'Email deliverability (optional but recommended)', 'claim-your-agency' ); ?></strong> — In Firebase: <strong>Authentication → Templates</strong>. Set a clear <strong>Sender name</strong> (e.g. “Bills Included”), a proper <strong>Reply-to</strong> address, and your <strong>App display name</strong> in Project settings so verification emails are less likely to go to spam.</li>
 				<li><strong><?php esc_html_e( 'Agency dashboard & login page', 'claim-your-agency' ); ?></strong> — Create a page (e.g. “Agency dashboard”) that contains the shortcode <code>[agency_dashboard]</code>. Then, in the “Agency dashboard URL” field below, set that page’s full URL. Approved agency owners will request a sign-in link and access their dashboard from this page.</li>
 			</ol>
-			<p style="margin: 12px 0 0 0; font-size: 13px;"><?php esc_html_e( 'After this, the “Claim this agency” button on listing pages will create a claim, send a verification email, and the callback page will verify the user’s email. Approved agency owners will be able to sign in via email link and manage their agency from the dashboard page.', 'claim-your-agency' ); ?></p>
+			<p style="margin: 12px 0 0 0; font-size: 13px;"><?php esc_html_e( 'After this, the “Claim your profile” button on listing pages will create a claim, send a verification email, and the callback page will verify the user’s email. Approved agency owners will be able to sign in via email link and manage their agency from the dashboard page.', 'claim-your-agency' ); ?></p>
 		</div>
 
 		<form action="options.php" method="post">
@@ -1308,6 +1320,17 @@ function cya_render_settings_page() {
 						<input type="url" class="regular-text" id="cya_agency_dashboard_url" name="cya_agency_dashboard_url" value="<?php echo esc_attr( $dashboard_url ); ?>" />
 						<p class="description">
 							<?php esc_html_e( 'Where approved agency owners are redirected after signing in with the Firebase Email Link. Use a page that contains the shortcode [agency_dashboard].', 'claim-your-agency' ); ?>
+						</p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="cya_submission_notification_email"><?php esc_html_e( 'Submission notification email', 'claim-your-agency' ); ?></label>
+					</th>
+					<td>
+						<input type="email" class="regular-text" id="cya_submission_notification_email" name="cya_submission_notification_email" value="<?php echo esc_attr( $submission_notification_email ); ?>" />
+						<p class="description">
+							<?php esc_html_e( 'Claim and removal submissions are sent to this mailbox.', 'claim-your-agency' ); ?>
 						</p>
 					</td>
 				</tr>
@@ -2345,7 +2368,7 @@ function cya_render_claim_meta_box( $post ) {
 
 /**
  * Front-end Claim My Agency popup (Step 1: Start Verification).
- * Renders a modal and JS handler used by the "Claim this agency" button.
+ * Renders a modal and JS handler used by the "Claim your profile" button.
  */
 function cya_output_claim_popup_js() {
 	if ( is_admin() ) {
@@ -2408,6 +2431,9 @@ function cya_output_claim_popup_js() {
 			font-weight: 600;
 			margin-bottom: 3px;
 		}
+		.cya-required-star {
+			color: #d63638;
+		}
 
 		.cya-claim-input,
 		.cya-claim-textarea {
@@ -2438,13 +2464,16 @@ function cya_output_claim_popup_js() {
 	<div id="cya-claim-modal-backdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99998;"></div>
 	<div id="cya-claim-modal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:#fff; border-radius:20px; box-shadow:0 10px 40px rgba(0,0,0,0.2); z-index:99999;">
 		<div style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-			<h2 style="margin:0; font-size:18px;"><?php esc_html_e( 'Claim or request removal', 'claim-your-agency' ); ?></h2>
+			<h2 id="cya-claim-modal-title" style="margin:0; font-size:18px;"><?php esc_html_e( 'Claim or request removal', 'claim-your-agency' ); ?></h2>
 			<button type="button" id="cya-claim-close" style="background:none;border:0;font-size:20px;line-height:1;cursor:pointer;">&times;</button>
+		</div>
+		<div style="padding:16px 20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+			<p id="cya-claim-modal-intro"><?php esc_html_e( 'We aim to keep Bills Included accurate and up to date. If you are authorised to act on behalf of the agent or property owner, you can request to claim or remove a listing.', 'claim-your-agency' ); ?></p>
 		</div>
 		<div class="cya-claim-body">
 			<div id="cya-claim-message" style="display:none; margin-bottom:12px; font-size:14px;"></div>
 			<div id="cya-claim-loading" style="display:none; margin-bottom:12px; font-size:14px; color:#555;">
-				<?php esc_html_e( 'Submitting your request, please wait...', 'claim-your-agency' ); ?>
+				<span id="cya-claim-loading-text"><?php esc_html_e( 'Submitting your request, please wait...', 'claim-your-agency' ); ?></span>
 			</div>
 			<div id="cya-claim-success" style="display:none; margin-bottom:12px; font-size:14px; text-align:center;">
 				<p id="cya-claim-success-text" style="margin-bottom:12px;"></p>
@@ -2458,9 +2487,9 @@ function cya_output_claim_popup_js() {
 				<input type="hidden" name="agency_post_id" id="cya-agency-post-id" value="" />
 				<input type="hidden" name="listing_id" id="cya-listing-id" value="" />
 				<input type="hidden" name="request_type" id="cya-request-type-hidden" value="claim" />
-
+				
 				<div class="cya-claim-field" id="cya-request-type-wrapper" style="margin-bottom:14px;">
-					<label for="cya-request-type"><?php esc_html_e( 'Claim or removal*', 'claim-your-agency' ); ?></label>
+					<label for="cya-request-type"><?php esc_html_e( 'Claim or removal', 'claim-your-agency' ); ?><span class="cya-required-star">*</span></label>
 					<select id="cya-request-type" name="cya_request_type" class="cya-claim-input" required>
 						<option value="claim"><?php esc_html_e( 'Claim', 'claim-your-agency' ); ?></option>
 						<option value="removal"><?php esc_html_e( 'Removal', 'claim-your-agency' ); ?></option>
@@ -2470,12 +2499,13 @@ function cya_output_claim_popup_js() {
 
 				<div class="cya-claim-row">
 					<div class="cya-claim-field">
-						<label for="cya-claimant-name"><?php esc_html_e( 'Your name', 'claim-your-agency' ); ?></label>
+						<label for="cya-claimant-name"><?php esc_html_e( 'Your name', 'claim-your-agency' ); ?><span class="cya-required-star">*</span></label>
 						<input type="text" id="cya-claimant-name" name="claimant_name" class="cya-claim-input" required />
 					</div>
 					<div class="cya-claim-field">
-						<label for="cya-claimant-email"><?php esc_html_e( 'Work email', 'claim-your-agency' ); ?></label>
+						<label for="cya-claimant-email"><?php esc_html_e( 'Work email address', 'claim-your-agency' ); ?><span class="cya-required-star">*</span></label>
 						<input type="email" id="cya-claimant-email" name="claimant_email" class="cya-claim-input" required />
+						<small style="display:block;margin-top:2px;color:#666;"><?php esc_html_e( 'Please use an email address associated with the agency or property owner.', 'claim-your-agency' ); ?></small>
 					</div>
 				</div>
 
@@ -2486,14 +2516,25 @@ function cya_output_claim_popup_js() {
 
 				<div id="cya-removal-only-fields" style="display:none;">
 					<div class="cya-claim-field">
-						<label for="cya-removal-scope"><?php esc_html_e( 'Removal scope*', 'claim-your-agency' ); ?></label>
+						<label for="cya-role-confirmation"><?php esc_html_e( 'Select one', 'claim-your-agency' ); ?><span class="cya-required-star">*</span></label>
+						<select id="cya-role-confirmation" name="role_confirmation" class="cya-claim-input">
+							<option value=""><?php esc_html_e( 'Please select', 'claim-your-agency' ); ?></option>
+							<option value="director_owner"><?php esc_html_e( 'Director / Owner', 'claim-your-agency' ); ?></option>
+							<option value="branch_manager"><?php esc_html_e( 'Branch Manager', 'claim-your-agency' ); ?></option>
+							<option value="compliance_officer"><?php esc_html_e( 'Compliance Officer', 'claim-your-agency' ); ?></option>
+							<option value="marketing_manager"><?php esc_html_e( 'Marketing Manager', 'claim-your-agency' ); ?></option>
+							<option value="other"><?php esc_html_e( 'Other', 'claim-your-agency' ); ?></option>
+						</select>
+					</div>
+					<div class="cya-claim-field">
+						<label for="cya-removal-scope"><?php esc_html_e( 'Removal scope', 'claim-your-agency' ); ?><span class="cya-required-star">*</span></label>
 						<select id="cya-removal-scope" name="removal_scope" class="cya-claim-input">
 							<option value="listing"><?php esc_html_e( 'This listing only', 'claim-your-agency' ); ?></option>
 							<option value="agency"><?php esc_html_e( 'All listings for this agency', 'claim-your-agency' ); ?></option>
 						</select>
 					</div>
 					<div class="cya-claim-field">
-						<label for="cya-removal-reason"><?php esc_html_e( 'Reason for removal*', 'claim-your-agency' ); ?></label>
+						<label for="cya-removal-reason"><?php esc_html_e( 'Reason for removal', 'claim-your-agency' ); ?><span class="cya-required-star">*</span></label>
 						<select id="cya-removal-reason" name="removal_reason" class="cya-claim-input">
 							<option value=""><?php esc_html_e( 'Please select', 'claim-your-agency' ); ?></option>
 							<option value="no_longer_available"><?php esc_html_e( 'Listing is no longer available', 'claim-your-agency' ); ?></option>
@@ -2535,7 +2576,7 @@ function cya_output_claim_popup_js() {
 				<div class="cya-claim-field" style="margin-bottom:12px;">
 					<label>
 						<input type="checkbox" id="cya-claim-consent" name="claim_consent" value="1" required />
-						<?php esc_html_e( 'I confirm I am authorised to act on behalf of this agency.', 'claim-your-agency' ); ?>
+						<?php esc_html_e( 'I confirm that I am authorised to act on behalf of the agent or property owner for this listing.', 'claim-your-agency' ); ?><span class="cya-required-star">*</span>
 					</label>
 				</div>
 
@@ -2546,8 +2587,8 @@ function cya_output_claim_popup_js() {
 				<?php endif; ?>
 
 				<div style="text-align:right;">
-					<button type="submit" id="cya-claim-submit" class="button cya-button">
-						<?php esc_html_e( 'Submit claim', 'claim-your-agency' ); ?>
+					<button type="submit" id="cya-claim-submit" class="button cya-button" disabled>
+						<?php esc_html_e( 'Submit', 'claim-your-agency' ); ?>
 					</button>
 				</div>
 			</form>
@@ -2572,6 +2613,10 @@ function cya_output_claim_popup_js() {
 			var cyaSuccessTxt = document.getElementById('cya-claim-success-text');
 			var cyaSuccessOk  = document.getElementById('cya-claim-success-ok');
 			var cyaCloseBtn   = document.getElementById('cya-claim-close');
+			var cyaModalTitle = document.getElementById('cya-claim-modal-title');
+			var cyaModalIntro = document.getElementById('cya-claim-modal-intro');
+			var cyaLoadingText = document.getElementById('cya-claim-loading-text');
+			var cyaSubmitBtn = document.getElementById('cya-claim-submit');
 			var agencyIdField = document.getElementById('cya-agency-post-id');
 			var listingIdField= document.getElementById('cya-listing-id');
 			var agencyNameEl  = document.getElementById('cya-agency-name');
@@ -2581,7 +2626,34 @@ function cya_output_claim_popup_js() {
 			var requestTypeHidden = document.getElementById('cya-request-type-hidden');
 			var removalFields = document.getElementById('cya-removal-only-fields');
 			var removalReasonEl = document.getElementById('cya-removal-reason');
+			var roleConfirmationEl = document.getElementById('cya-role-confirmation');
 			var listingUrlEl = document.getElementById('cya-listing-url');
+
+			function setModeCopy(isClaimOnly) {
+				if (cyaModalTitle) {
+					cyaModalTitle.textContent = isClaimOnly
+						? '<?php echo esc_js( __( 'Claim your profile', 'claim-your-agency' ) ); ?>'
+						: '<?php echo esc_js( __( 'Claim or request removal', 'claim-your-agency' ) ); ?>';
+				}
+				if (cyaModalIntro) {
+					cyaModalIntro.textContent = isClaimOnly
+						? '<?php echo esc_js( __( 'If you are authorised to act on behalf of the agent or property owner, you can request to claim this listing.', 'claim-your-agency' ) ); ?>'
+						: '<?php echo esc_js( __( 'We aim to keep Bills Included accurate and up to date. If you are authorised to act on behalf of the agent or property owner, you can request to claim or remove a listing.', 'claim-your-agency' ) ); ?>';
+				}
+			}
+
+			function validateSubmitState() {
+				if (!cyaForm || !cyaSubmitBtn) return;
+				var reqType = requestTypeEl ? requestTypeEl.value : 'claim';
+				var emailOk = document.getElementById('cya-claimant-email') && document.getElementById('cya-claimant-email').value.trim() !== '';
+				var nameOk = document.getElementById('cya-claimant-name') && document.getElementById('cya-claimant-name').value.trim() !== '';
+				var consentOk = document.getElementById('cya-claim-consent') && document.getElementById('cya-claim-consent').checked;
+				var removalOk = true;
+				if (reqType === 'removal') {
+					removalOk = !!(removalReasonEl && removalReasonEl.value && roleConfirmationEl && roleConfirmationEl.value);
+				}
+				cyaSubmitBtn.disabled = !(emailOk && nameOk && consentOk && removalOk);
+			}
 
 			function cyaOpenModal() {
 				if (!cyaModal || !cyaBackdrop) return;
@@ -2632,6 +2704,10 @@ function cya_output_claim_popup_js() {
 					if (removalReasonEl) {
 						removalReasonEl.required = (val === 'removal');
 					}
+					if (roleConfirmationEl) {
+						roleConfirmationEl.required = (val === 'removal');
+					}
+					validateSubmitState();
 				});
 			}
 
@@ -2660,6 +2736,7 @@ function cya_output_claim_popup_js() {
 				// Determine mode: claim-only (button click) vs claim/removal (footer link).
 				var isClaimButton = !!buttonEl;
 				if (isClaimButton) {
+					setModeCopy(true);
 					// Claim-only: hide request-type selector and removal-only fields.
 					if (requestTypeWrapper) {
 						requestTypeWrapper.style.display = 'none';
@@ -2681,7 +2758,12 @@ function cya_output_claim_popup_js() {
 						removalReasonEl.required = false;
 						removalReasonEl.value = '';
 					}
+					if (roleConfirmationEl) {
+						roleConfirmationEl.required = false;
+						roleConfirmationEl.value = '';
+					}
 				} else {
+					setModeCopy(false);
 					// Opened from "contact us here": show request-type (default removal) and removal fields.
 					if (requestTypeWrapper) {
 						requestTypeWrapper.style.display = 'block';
@@ -2698,6 +2780,12 @@ function cya_output_claim_popup_js() {
 					if (removalReasonEl) {
 						removalReasonEl.required = true;
 					}
+					if (roleConfirmationEl) {
+						roleConfirmationEl.required = true;
+					}
+				}
+				if (listingUrlEl && listingIdField && listingIdField.value) {
+					listingUrlEl.value = listingIdField.value;
 				}
 				// Fetch agency details to pre-fill name & website.
 				var formData = new FormData();
@@ -2757,6 +2845,11 @@ function cya_output_claim_popup_js() {
 					var actionInput = cyaForm.querySelector('input[name="action"]');
 					if (actionInput) {
 						actionInput.value = (reqType === 'removal') ? 'cya_submit_removal_request' : 'cya_submit_claim';
+					}
+					if (cyaLoadingText) {
+						cyaLoadingText.textContent = (reqType === 'removal')
+							? '<?php echo esc_js( __( 'Submitting your removal request, please wait...', 'claim-your-agency' ) ); ?>'
+							: '<?php echo esc_js( __( 'Submitting your claim, please wait...', 'claim-your-agency' ) ); ?>';
 					}
 
 					if (!document.getElementById('cya-claim-consent').checked) {
@@ -2907,6 +3000,10 @@ function cya_output_claim_popup_js() {
 						}
 					});
 				});
+				['input','change'].forEach(function(evt){
+					cyaForm.addEventListener(evt, validateSubmitState);
+				});
+				validateSubmitState();
 			}
 		})();
 	</script>
@@ -3137,6 +3234,18 @@ function cya_submit_claim() {
 		)
 	);
 
+	// Notify the configured admin mailbox for this workflow.
+	$admin_claim_email = get_option( 'cya_submission_notification_email', 'admin@thebillsincluded.com' );
+	if ( $admin_claim_email ) {
+		$headers = array( 'Content-Type: text/plain; charset=UTF-8' );
+		wp_mail(
+			$admin_claim_email,
+			sprintf( __( 'New claim request from %s', 'claim-your-agency' ), $claimant_email ),
+			sprintf( "Name: %s\nEmail: %s\nAgency: %s\nListing ID: %s\n", $claimant_name, $claimant_email, $agency_name, $listing_id ? $listing_id : '-' ),
+			$headers
+		);
+	}
+
 	wp_send_json_success(
 		array(
 			'message'        => __( "Thanks, we've received your request. You can start the process by clicking the email we have sent you, please check your spam. Once you have verified your email, you should have access to your listings as soon as the admin approves you. Otherwise, feel free to email us.", 'claim-your-agency' ),
@@ -3162,6 +3271,7 @@ function cya_submit_removal_request() {
 	$claimant_email  = isset( $_POST['claimant_email'] ) ? sanitize_email( wp_unslash( $_POST['claimant_email'] ) ) : '';
 	$listing_id      = isset( $_POST['listing_id'] ) ? (int) $_POST['listing_id'] : 0;
 	$listing_url_raw = isset( $_POST['listing_url'] ) ? sanitize_text_field( wp_unslash( $_POST['listing_url'] ) ) : '';
+	$role_confirmation = isset( $_POST['role_confirmation'] ) ? sanitize_text_field( wp_unslash( $_POST['role_confirmation'] ) ) : '';
 	$removal_scope   = isset( $_POST['removal_scope'] ) ? sanitize_text_field( wp_unslash( $_POST['removal_scope'] ) ) : 'listing';
 	$removal_reason  = isset( $_POST['removal_reason'] ) ? sanitize_text_field( wp_unslash( $_POST['removal_reason'] ) ) : '';
 
@@ -3170,8 +3280,8 @@ function cya_submit_removal_request() {
 		$listing_url_raw = get_permalink( $listing_id );
 	}
 
-	if ( $claimant_email === '' || $removal_reason === '' || ( $listing_id <= 0 && $listing_url_raw === '' ) ) {
-		wp_send_json_error( array( 'message' => __( 'Work email, reason for removal, and a valid listing are required.', 'claim-your-agency' ) ) );
+	if ( $claimant_name === '' || $claimant_email === '' || $role_confirmation === '' || $removal_scope === '' || $removal_reason === '' || ( $listing_id <= 0 && $listing_url_raw === '' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Please complete all required fields.', 'claim-your-agency' ) ) );
 	}
 
 	if ( empty( $_POST['claim_consent'] ) ) {
@@ -3242,6 +3352,7 @@ function cya_submit_removal_request() {
 	$request_id = (int) $request_id;
 
 	update_post_meta( $request_id, 'request_type', 'removal' );
+	update_post_meta( $request_id, 'role_confirmation', $role_confirmation );
 	update_post_meta( $request_id, 'removal_scope', $removal_scope );
 	update_post_meta( $request_id, 'removal_reason', $removal_reason );
 	if ( $listing_id > 0 ) {
@@ -3257,19 +3368,19 @@ function cya_submit_removal_request() {
 
 	// Send confirmation email to the requester.
 	$subject = __( 'Confirm your listing removal request', 'claim-your-agency' );
-	$body    = __( "Dear Sirs,\n\nPlease confirm your request to remove the following listing from Bills Included by replying to this email.\n\nBest regards,\nBills Included team", 'claim-your-agency' );
+	$body    = __( "Dear Sir,\n\nPlease confirm your request to remove the following listing from Bills Included by replying to this email.\n\nBest regards,\nBills Included team", 'claim-your-agency' );
 
 	$headers = array( 'Content-Type: text/plain; charset=UTF-8' );
 
 	wp_mail( $claimant_email, $subject, $body, $headers );
 
-	// Optionally notify the site admin as well.
-	$admin_email = get_option( 'admin_email' );
+	// Notify the configured admin mailbox for this workflow.
+	$admin_email = get_option( 'cya_submission_notification_email', 'admin@thebillsincluded.com' );
 	if ( $admin_email && $admin_email !== $claimant_email ) {
 		wp_mail(
 			$admin_email,
 			sprintf( __( 'New removal request from %s', 'claim-your-agency' ), $claimant_email ),
-			sprintf( "Scope: %s\nReason: %s\nListing ID: %s\nListing URL: %s\n", $removal_scope, $removal_reason, $listing_id ? $listing_id : '-', $listing_url_raw ),
+			sprintf( "Role: %s\nScope: %s\nReason: %s\nListing ID: %s\nListing URL: %s\n", $role_confirmation, $removal_scope, $removal_reason, $listing_id ? $listing_id : '-', $listing_url_raw ),
 			$headers
 		);
 	}
@@ -3277,7 +3388,7 @@ function cya_submit_removal_request() {
 	wp_send_json_success(
 		array(
 			'flow'    => 'removal',
-			'message' => __( "Thanks, we've received your request. We’ll review it shortly and confirm by email once your request has been entertained. Removal requests are usually processed within 1–3 business days.", 'claim-your-agency' ),
+			'message' => __( "Thanks, we've received your request. You will need to respond to our email, please check your spam. Once that your response has been received, we’ll review it shortly and confirm by email once the listing has been removed. Removal requests are usually processed within 1–3 business days.", 'claim-your-agency' ),
 		)
 	);
 }
